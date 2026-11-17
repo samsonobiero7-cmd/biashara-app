@@ -15,13 +15,13 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ---------- Forest-Green & Clean Card Styling (Light/Dark Mode Compatible) ----------
-
-# ---------- Custom App Icon & PWA Manifest ----------
+# ---------- Custom Mobile App Icon & PWA Manifest Links ----------
 st.markdown("""
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/svg+xml" href="logo.svg">
 """, unsafe_allow_html=True)
+
+# ---------- Forest-Green & Clean Card Styling (Light/Dark Mode Compatible) ----------
 st.markdown("""
 <style>
 :root { --green:#16764a; }
