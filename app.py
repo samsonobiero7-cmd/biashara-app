@@ -719,7 +719,6 @@ elif page == "Reports":
     total_sales = summary.get("total_revenue", 0.0) if summary else sum(s["total"] for s in sales)
     total_expenses = summary.get("total_expenses", 0.0) if summary else sum(e["amount"] for e in expenses)
     total_restocks = summary.get("total_restock_cost", 0.0) if summary else 0.0
-
     total_sales = total_sales if total_sales is not None else 0.0
     total_expenses = total_expenses if total_expenses is not None else 0.0
     total_restocks = total_restocks if total_restocks is not None else 0.0
