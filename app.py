@@ -8,7 +8,6 @@ from translations import get_text
 # ------------------------------------------------------------
 # BIASHARA — SQLite-Backed Business Manager & POS
 # ------------------------------------------------------------
-
 st.set_page_config(
     page_title="Biashara | Business Manager",
     page_icon="🟢",
@@ -16,21 +15,14 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ---------- Forest-Green & Clean Card Styling (Forced High Contrast) ----------
+# ---------- Forest-Green & Clean Card Styling (Light/Dark Mode Compatible) ----------
 st.markdown("""
 <style>
 :root { --green:#16764a; }
-.stApp { background:#ffffff !important; color:#172b22 !important; }
-[data-testid="stSidebar"] { background:#102c22 !important; }
-[data-testid="stSidebar"] * { color:#f3f8f5 !important; }
 .block-container { padding-top:1.5rem; padding-bottom:3rem; max-width:1500px; }
-h1, h2, h3, h4, h5, h6, span, p, label { color:#172b22 !important; }
 div[data-testid="stMetric"] {
-  background:#ffffff; border:1px solid #e5ece8; padding:16px;
+  border:1px solid rgba(128, 128, 128, 0.25); padding:16px;
   border-radius:14px;
-}
-div[data-testid="stMetric"] label, div[data-testid="stMetric"] div {
-  color:#172b22 !important;
 }
 .stButton > button, .stFormSubmitButton > button {
   border-radius:10px; min-height:42px; font-weight:600;
@@ -38,20 +30,206 @@ div[data-testid="stMetric"] label, div[data-testid="stMetric"] div {
 .stButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] {
   background:#16764a !important; border-color:#16764a !important; color:white !important;
 }
+/* Ensure button labels remain crisp white in both light and dark mode */
+.stButton > button,
+[data-testid="stFormSubmitButton"] > button {
+    background-color: #0E763F !important;
+    color: #FFFFFF !important;
+    border: none !important;
+}
+.stButton > button:hover,
+[data-testid="stFormSubmitButton"] > button:hover {
+    background-color: #0B5D32 !important;
+    color: #FFFFFF !important;
+}
+.stButton > button p,
+[data-testid="stFormSubmitButton"] > button p {
+    color: #FFFFFF !important;
+}
 .small-muted { color:#718078 !important; font-size:0.88rem; }
 div[data-testid="stDataFrame"] { border-radius:12px; }
 </style>
 """, unsafe_allow_html=True)
 
+# ---------- Bilingual Translation Helper ----------
+UI_STRINGS = {
+    "en": {
+        "tagline": "Your business, made simpler.",
+        "current_biz": "CURRENT BUSINESS",
+        "add_first_biz": "Add your first business to get started.",
+        "sidebar_footer_1": "Simple tools for everyday business.",
+        "sidebar_footer_2": "Biashara • Connected to SQLite",
+        "nav_overview": "🏠  Overview",
+        "nav_businesses": "🏪  My businesses",
+        "nav_products": "📦  Products & stock",
+        "nav_sales": "🛒  Record a sale",
+        "nav_expenses": "💸  Expenses",
+        "nav_restocks": "📦  Supplier restocks",
+        "nav_daily": "📅  Daily records",
+        "nav_reports": "📊  Reports",
+        "warn_no_biz": "Add your first business using **🏪 My businesses** in the sidebar.",
+        "overview_title": "Good morning 👋",
+        "overview_sub": "Here's what's happening at {biz} today.",
+        "todays_sales": "Today's sales",
+        "todays_expenses": "Today's expenses",
+        "products_count": "Products",
+        "low_stock_items": "Low-stock items",
+        "recent_sales": "Recent sales",
+        "no_sales_yet": "No sales recorded yet. Use **🛒 Record a sale** in the sidebar to log your first transaction.",
+        "stock_to_check": "Stock to check",
+        "all_caught_up": "You're all caught up. No low-stock alerts.",
+        "biz_title": "My businesses",
+        "biz_sub": "Manage all the businesses connected to your Biashara database.",
+        "your_businesses": "Your businesses",
+        "no_biz_yet": "You haven't added a business yet.",
+        "add_a_biz": "Add a business",
+        "biz_name_lbl": "Business name",
+        "biz_cat_lbl": "Business category",
+        "add_biz_btn": "＋ Add business",
+        "biz_caption": "Each business maintains its own separate inventory, sales, and expense records in SQLite.",
+        "prod_title": "Products & stock",
+        "prod_sub": "Keep track of what {biz} sells.",
+        "tab_prod_list": "📦 Product list",
+        "tab_add_prod": "＋ Add product",
+        "tab_custom_attr": "🏷️ Custom attributes",
+        "no_prods_yet": "No products yet. Add your first product in the **＋ Add product** tab.",
+        "prod_name_lbl": "Product name",
+        "opening_stock": "Opening stock",
+        "low_stock_at": "Low-stock alert at",
+        "buying_price": "Buying price (KSh)",
+        "selling_price": "Selling price (KSh)",
+        "save_prod_btn": "Save product",
+        "sales_title": "Record a sale",
+        "sales_sub": "Log a sale quickly, select payment method, and keep stock updated.",
+        "new_sale_entry": "New sale entry",
+        "what_did_you_sell": "What did you sell?",
+        "qty_sold": "Quantity sold",
+        "unit_price_lbl": "Selling price per unit (KSh)",
+        "confirm_sale_btn": "Confirm sale",
+        "exp_title": "Expenses",
+        "exp_sub": "Keep an eye on the money going out.",
+        "add_an_exp": "Add an expense",
+        "exp_for_lbl": "What was the expense for?",
+        "exp_cat_lbl": "Expense category",
+        "amount_lbl": "Amount (KSh)",
+        "save_exp_btn": "Save expense",
+        "exp_history": "Expense history",
+        "total_rec_exp": "Total recorded expenses",
+        "restock_title": "Supplier restocks",
+        "restock_sub": "Record incoming stock deliveries to replenish inventory.",
+        "select_prod_restock": "Select product restocked",
+        "qty_received": "Quantity received",
+        "delivery_note": "Supplier or delivery note",
+        "confirm_restock_btn": "Confirm restock",
+        "daily_title": "Daily records",
+        "daily_sub": "Review a specific day's sales, expenses, and overall ledger summary.",
+        "choose_date": "Choose a date",
+        "sales_on_date": "Sales on date",
+        "exp_on_date": "Expenses on date",
+        "sales_less_exp": "Sales less expenses",
+        "reports_title": "Reports & insights",
+        "reports_sub": "Overall performance for {biz}.",
+        "total_sales_rev": "Total sales revenue",
+        "est_gross_profit": "Estimated gross profit",
+        "total_expenses": "Total expenses",
+        "net_cash_pos": "Net cash position",
+        "footer_caption": "Biashara • Built for everyday businesses",
+    },
+    "sw": {
+        "tagline": "Biashara yako, imerahisishwa.",
+        "current_biz": "BIASHARA YA SASA",
+        "add_first_biz": "Ongeza biashara yako ya kwanza ili kuanza.",
+        "sidebar_footer_1": "Zana rahisi kwa biashara ya kila siku.",
+        "sidebar_footer_2": "Biashara • Imeunganishwa na SQLite",
+        "nav_overview": "🏠  Muhtasari",
+        "nav_businesses": "🏪  Biashara zangu",
+        "nav_products": "📦  Bidhaa na stoo",
+        "nav_sales": "🛒  Rekodi mauzo",
+        "nav_expenses": "💸  Matumizi",
+        "nav_restocks": "📦  Kuongeza stoo",
+        "nav_daily": "📅  Rekodi za kila siku",
+        "nav_reports": "📊  Ripoti",
+        "warn_no_biz": "Ongeza biashara yako ya kwanza kupitia **🏪 Biashara zangu** pembeni.",
+        "overview_title": "Habari za asubuhi 👋",
+        "overview_sub": "Haya ndiyo yanayoendelea katika {biz} leo.",
+        "todays_sales": "Mauzo ya leo",
+        "todays_expenses": "Matumizi ya leo",
+        "products_count": "Bidhaa",
+        "low_stock_items": "Bidhaa zinazokaribia kuisha",
+        "recent_sales": "Mauzo ya hivi karibuni",
+        "no_sales_yet": "Hakuna mauzo yaliyorekodiwa bado. Tumia **🛒 Rekodi mauzo** kurekodi muamala wako wa kwanza.",
+        "stock_to_check": "Stoo ya kukagua",
+        "all_caught_up": "Kila kitu kiko sawa. Hakuna tahadhari za upungufu wa stoo.",
+        "biz_title": "Biashara zangu",
+        "biz_sub": "Simamia biashara zote zilizounganishwa kwenye mfumo wako wa Biashara.",
+        "your_businesses": "Biashara zako",
+        "no_biz_yet": "Bado hujaongeza biashara yoyote.",
+        "add_a_biz": "Ongeza biashara",
+        "biz_name_lbl": "Jina la biashara",
+        "biz_cat_lbl": "Aina ya biashara",
+        "add_biz_btn": "＋ Ongeza biashara",
+        "biz_caption": "Kila biashara ina stoo, mauzo, na rekodi zake za matumizi kipekee katika SQLite.",
+        "prod_title": "Bidhaa na stoo",
+        "prod_sub": "Fuatilia bidhaa zinazouzwa na {biz}.",
+        "tab_prod_list": "📦 Orodha ya bidhaa",
+        "tab_add_prod": "＋ Ongeza bidhaa",
+        "tab_custom_attr": "🏷️ Sifa maalum",
+        "no_prods_yet": "Hakuna bidhaa bado. Ongeza bidhaa yako ya kwanza katika **＋ Ongeza bidhaa**.",
+        "prod_name_lbl": "Jina la bidhaa",
+        "opening_stock": "Stoo ya kuanzia",
+        "low_stock_at": "Tahadhari stoo ikifikia",
+        "buying_price": "Bei ya kununulia (KSh)",
+        "selling_price": "Bei ya kuuzia (KSh)",
+        "save_prod_btn": "Hifadhi bidhaa",
+        "sales_title": "Rekodi mauzo",
+        "sales_sub": "Rekodi mauzo haraka, chagua njia ya malipo, na usasishe stoo.",
+        "new_sale_entry": "Ingiza mauzo mapya",
+        "what_did_you_sell": "Umeuza nini?",
+        "qty_sold": "Idadi iliyouzwa",
+        "unit_price_lbl": "Bei ya kuuzia kwa moja (KSh)",
+        "confirm_sale_btn": "Thibitisha mauzo",
+        "exp_title": "Matumizi",
+        "exp_sub": "Fuatilia pesa zinazotoka nje ya biashara.",
+        "add_an_exp": "Ongeza matumizi",
+        "exp_for_lbl": "Matumizi yalikuwa ya nini?",
+        "exp_cat_lbl": "Kundi la matumizi",
+        "amount_lbl": "Kiasi (KSh)",
+        "save_exp_btn": "Hifadhi matumizi",
+        "exp_history": "Historia ya matumizi",
+        "total_rec_exp": "Jumla ya matumizi yaliyorekodiwa",
+        "restock_title": "Kuongeza stoo",
+        "restock_sub": "Rekodi mizigo mipya iliyoingia kuongeza stoo.",
+        "select_prod_restock": "Chagua bidhaa iliyoongezwa",
+        "qty_received": "Idadi iliyopokelewa",
+        "delivery_note": "Maelezo ya msambazaji au mzigo",
+        "confirm_restock_btn": "Thibitisha mzigo",
+        "daily_title": "Rekodi za kila siku",
+        "daily_sub": "Kagua mauzo, matumizi, na muhtasari wa siku mahususi.",
+        "choose_date": "Chagua tarehe",
+        "sales_on_date": "Mauzo ya tarehe hii",
+        "exp_on_date": "Matumizi ya tarehe hii",
+        "sales_less_exp": "Mauzo baada ya matumizi",
+        "reports_title": "Ripoti na takwimu",
+        "reports_sub": "Utendaji wa jumla wa {biz}.",
+        "total_sales_rev": "Jumla ya mapato ya mauzo",
+        "est_gross_profit": "Makadirio ya faida ghafi",
+        "total_expenses": "Jumla ya matumizi",
+        "net_cash_pos": "Salio halisi la fedha",
+        "footer_caption": "Biashara • Imejengwa kwa ajili ya biashara za kila siku",
+    }
+}
+
+def t(key, lang="en", **kwargs):
+    text = UI_STRINGS.get(lang, UI_STRINGS["en"]).get(key)
+    if text is None:
+        text = get_text(key, lang=lang)
+    return text.format(**kwargs) if kwargs else text
+
 # ---------- Initialize SQLite Database ----------
 setup_biashara.create_biashara_database()
 conn = operations.get_db_connection()
-
 if "custom_attributes" not in st.session_state:
     st.session_state.custom_attributes = {}
-
-# Default language setting
-lang = "en"
 
 def money(value):
     return f"KSh {float(value or 0):,.2f}"
@@ -105,42 +283,48 @@ def get_business_summary(bid):
 
 # ---------- Sidebar ----------
 businesses = get_all_businesses()
-
 with st.sidebar:
     st.markdown("# 🟢 Biashara")
-    st.caption("Your business, made simpler.")
-    st.divider()
+    lang_choice = st.selectbox(
+        "Language / Lugha",
+        ["English", "Kiswahili"],
+        index=0 if st.session_state.get("lang", "en") == "en" else 1,
+        label_visibility="collapsed"
+    )
+    lang = "en" if lang_choice == "English" else "sw"
+    st.session_state.lang = lang
 
+    st.caption(t("tagline", lang))
+    st.divider()
     if businesses:
         biz_map = {b["business_name"]: b for b in businesses}
         names = list(biz_map.keys())
         default_idx = names.index(st.session_state["active_business"]) if st.session_state.get("active_business") in names else 0
-        chosen_name = st.selectbox("CURRENT BUSINESS", names, index=default_idx)
+        chosen_name = st.selectbox(t("current_biz", lang), names, index=default_idx)
         st.session_state.active_business = chosen_name
         biz = biz_map[chosen_name]
     else:
         biz = None
-        st.info("Add your first business to get started.")
-
+        st.info(t("add_first_biz", lang))
     st.divider()
     pages = {
-        "🏠  Overview": "Overview",
-        "🏪  My businesses": "Businesses",
-        "📦  Products & stock": "Products",
-        "🛒  Record a sale": "Sales",
-        "💸  Expenses": "Expenses",
-        "📦  Supplier restocks": "Restocks",
-        "📅  Daily records": "Daily records",
-        "📊  Reports": "Reports",
+        t("nav_overview", lang): "Overview",
+        t("nav_businesses", lang): "Businesses",
+        t("nav_products", lang): "Products",
+        t("nav_sales", lang): "Sales",
+        t("nav_expenses", lang): "Expenses",
+        t("nav_restocks", lang): "Restocks",
+        t("nav_daily", lang): "Daily records",
+        t("nav_reports", lang): "Reports",
     }
     page_label = st.radio("MENU", list(pages.keys()), label_visibility="collapsed")
     page = pages[page_label]
     st.divider()
-    st.caption("Simple tools for everyday business.")
-    st.caption("Biashara • Connected to SQLite")
+    st.caption(t("sidebar_footer_1", lang))
+    st.caption(t("sidebar_footer_2", lang))
 
 if not biz and page != "Businesses":
-    st.warning("Add your first business using **🏪 My businesses** in the sidebar.")
+    st.warning(t("warn_no_biz", lang))
     st.stop()
 
 # ---------- Header Helper ----------
@@ -158,137 +342,133 @@ def page_header(title, subtitle):
 # 1. OVERVIEW
 # ============================================================
 if page == "Overview":
-    page_header("Good morning 👋", f"Here's what's happening at {biz['business_name']} today.")
-
+    page_header(t("overview_title", lang), t("overview_sub", lang, biz=biz["business_name"]))
     today_str = date.today().isoformat()
     all_sales = get_business_sales(biz["business_id"])
     all_expenses = get_business_expenses(biz["business_id"])
     products = get_business_products(biz["business_id"])
-
     todays_sales = [s for s in all_sales if s["sale_day"] == today_str]
     todays_expenses = [e for e in all_expenses if e["expense_day"] == today_str]
     low_stock = [p for p in products if p["stock_quantity"] <= p["reorder_level"]]
-
     a, b, c, d = st.columns(4)
-    a.metric("Today's sales", money(sum(s["total"] for s in todays_sales)))
-    b.metric("Today's expenses", money(sum(e["amount"] for e in todays_expenses)))
-    c.metric("Products", len(products))
-    d.metric("Low-stock items", len(low_stock))
-
+    a.metric(t("todays_sales", lang), money(sum(s["total"] for s in todays_sales)))
+    b.metric(t("todays_expenses", lang), money(sum(e["amount"] for e in todays_expenses)))
+    c.metric(t("products_count", lang), len(products))
+    d.metric(t("low_stock_items", lang), len(low_stock))
     st.write("")
     left, right = st.columns([1.4, 1], gap="large")
     with left:
-        st.markdown("### Recent sales")
+        st.markdown(f"### {t('recent_sales', lang)}")
         if all_sales:
             df_recent = pd.DataFrame(all_sales[:8])[[
                 "sale_day", "product_name", "quantity", "unit_price", "total", "payment_method"
             ]].rename(
                 columns={
-                    "sale_day": "Date",
-                    "product_name": "Product",
-                    "quantity": "Qty",
-                    "unit_price": "Unit Price",
-                    "total": "Total (KSh)",
-                    "payment_method": "Paid Via"
+                    "sale_day": "Date" if lang == "en" else "Tarehe",
+                    "product_name": "Product" if lang == "en" else "Bidhaa",
+                    "quantity": "Qty" if lang == "en" else "Idadi",
+                    "unit_price": "Unit Price" if lang == "en" else "Bei",
+                    "total": "Total (KSh)" if lang == "en" else "Jumla (KSh)",
+                    "payment_method": "Paid Via" if lang == "en" else "Malipo"
                 }
             )
             st.dataframe(df_recent, use_container_width=True, hide_index=True)
         else:
-            st.info("No sales recorded yet. Use **🛒 Record a sale** in the sidebar to log your first transaction.")
-
+            st.info(t("no_sales_yet", lang))
     with right:
-        st.markdown("### Stock to check")
+        st.markdown(f"### {t('stock_to_check', lang)}")
         if low_stock:
             for p in low_stock[:6]:
-                st.warning(f"**{p['product_name']}** — {p['stock_quantity']:g} units left (Alert below {p['reorder_level']:g})")
+                if lang == "en":
+                    st.warning(f"**{p['product_name']}** — {p['stock_quantity']:g} units left (Alert below {p['reorder_level']:g})")
+                else:
+                    st.warning(f"**{p['product_name']}** — Zimebaki {p['stock_quantity']:g} (Tahadhari chini ya {p['reorder_level']:g})")
         else:
-            st.success("You're all caught up. No low-stock alerts.")
+            st.success(t("all_caught_up", lang))
 
 # ============================================================
 # 2. MY BUSINESSES
 # ============================================================
 elif page == "Businesses":
-    page_header("My businesses", "Manage all the businesses connected to your Biashara database.")
+    page_header(t("biz_title", lang), t("biz_sub", lang))
     left, right = st.columns([1.15, 1], gap="large")
-
     with left:
-        st.markdown("### Your businesses")
+        st.markdown(f"### {t('your_businesses', lang)}")
         if businesses:
             df_biz = pd.DataFrame(businesses)[["business_id", "business_name", "business_type"]].rename(
-                columns={"business_id": "ID", "business_name": "Business Name", "business_type": "Sector"}
+                columns={
+                    "business_id": "ID",
+                    "business_name": "Business Name" if lang == "en" else "Jina la Biashara",
+                    "business_type": "Sector" if lang == "en" else "Sekta"
+                }
             )
             st.dataframe(df_biz, use_container_width=True, hide_index=True)
         else:
-            st.info("You haven't added a business yet.")
-
+            st.info(t("no_biz_yet", lang))
     with right:
-        st.markdown("### Add a business")
+        st.markdown(f"### {t('add_a_biz', lang)}")
         with st.form("add_business", clear_on_submit=True):
-            name = st.text_input("Business name", placeholder="e.g. Mama Njeri's Shop")
+            name = st.text_input(t("biz_name_lbl", lang), placeholder="e.g. Mama Njeri's Shop")
             kind = st.selectbox(
-                "Business category",
+                t("biz_cat_lbl", lang),
                 ["Grocery", "Hardware", "Electrical", "Cereal", "Retail shop", "Other"]
             )
-            submitted = st.form_submit_button("＋ Add business", type="primary", use_container_width=True)
+            submitted = st.form_submit_button(t("add_biz_btn", lang), type="primary", use_container_width=True)
             if submitted:
                 if not name.strip():
-                    st.error("Please enter a business name.")
+                    st.error("Please enter a business name." if lang == "en" else "Tafadhali weka jina la biashara.")
                 else:
                     new_id = operations.register_business(business_name=name.strip(), business_type=kind)
                     st.session_state.active_business = name.strip()
-                    st.success(f"{name.strip()} has been added (ID: {new_id}).")
+                    st.success(f"{name.strip()} has been added (ID: {new_id})." if lang == "en" else f"{name.strip()} imeongezwa (ID: {new_id}).")
                     st.rerun()
-    st.caption("Each business maintains its own separate inventory, sales, and expense records in SQLite.")
+    st.caption(t("biz_caption", lang))
 
 # ============================================================
 # 3. PRODUCTS & STOCK
 # ============================================================
 elif page == "Products":
-    page_header("Products & stock", f"Keep track of what {biz['business_name']} sells.")
+    page_header(t("prod_title", lang), t("prod_sub", lang, biz=biz["business_name"]))
     products = get_business_products(biz["business_id"])
-    tab1, tab2, tab3 = st.tabs(["📦 Product list", "＋ Add product", "🏷️ Custom attributes"])
-
+    tab1, tab2, tab3 = st.tabs([t("tab_prod_list", lang), t("tab_add_prod", lang), t("tab_custom_attr", lang)])
     with tab1:
         if products:
             df = pd.DataFrame(products).rename(columns={
                 "product_id": "ID",
-                "product_name": "Product",
-                "buying_price": "Buying price (KSh)",
-                "selling_price": "Selling price (KSh)",
-                "stock_quantity": "In stock",
-                "reorder_level": "Alert below"
+                "product_name": "Product" if lang == "en" else "Bidhaa",
+                "buying_price": "Buying price (KSh)" if lang == "en" else "Bei ya kununua (KSh)",
+                "selling_price": "Selling price (KSh)" if lang == "en" else "Bei ya kuuza (KSh)",
+                "stock_quantity": "In stock" if lang == "en" else "Stoo",
+                "reorder_level": "Alert below" if lang == "en" else "Tahadhari chini ya"
             })
             st.dataframe(df, use_container_width=True, hide_index=True)
         else:
-            st.info("No products yet. Add your first product in the **＋ Add product** tab.")
-
+            st.info(t("no_prods_yet", lang))
     with tab2:
         with st.form("add_product", clear_on_submit=True):
-            name = st.text_input("Product name", placeholder="e.g. Sugar 2kg")
+            name = st.text_input(t("prod_name_lbl", lang), placeholder="e.g. Sugar 2kg")
             col1, col2 = st.columns(2)
-            qty = col1.number_input("Opening stock", min_value=0.0, step=1.0, value=10.0)
-            reorder = col2.number_input("Low-stock alert at", min_value=0.0, step=1.0, value=5.0)
+            qty = col1.number_input(t("opening_stock", lang), min_value=0.0, step=1.0, value=10.0)
+            reorder = col2.number_input(t("low_stock_at", lang), min_value=0.0, step=1.0, value=5.0)
             col3, col4 = st.columns(2)
-            buy = col3.number_input("Buying price (KSh)", min_value=0.0, step=1.0)
-            sell = col4.number_input("Selling price (KSh)", min_value=0.0, step=1.0)
-
+            buy = col3.number_input(t("buying_price", lang), min_value=0.0, step=1.0)
+            sell = col4.number_input(t("selling_price", lang), min_value=0.0, step=1.0)
             extra_fields = st.session_state.custom_attributes.get(str(biz["business_id"]), [])
             extras = {}
             if extra_fields:
-                st.markdown("**Business-specific details**")
+                st.markdown("**Business-specific details**" if lang == "en" else "**Maelezo maalum ya biashara**")
                 cols = st.columns(2)
                 for i, attr in enumerate(extra_fields):
                     val = cols[i % 2].text_input(attr)
                     if val.strip():
                         extras[attr] = val.strip()
-
-            save = st.form_submit_button("Save product", type="primary", use_container_width=True)
+            save = st.form_submit_button(t("save_prod_btn", lang), type="primary", use_container_width=True)
             if save:
                 if not name.strip():
-                    st.error("Please enter a product name.")
+                    st.error("Please enter a product name." if lang == "en" else "Tafadhali weka jina la bidhaa.")
                 else:
                     if sell < buy:
-                        st.warning("Note: Selling price is lower than buying price.")
+                        st.warning("Note: Selling price is lower than buying price." if lang == "en" else "Angalizo: Bei ya kuuza ni ndogo kuliko bei ya kununua.")
                     operations.add_product_with_custom_fields(
                         business_id=biz["business_id"],
                         product_name=name.strip(),
@@ -298,80 +478,79 @@ elif page == "Products":
                         reorder_level=reorder,
                         custom_fields=extras if extras else None
                     )
-                    st.success(f"'{name.strip()}' saved to database.")
+                    st.success(f"'{name.strip()}' saved to database." if lang == "en" else f"'{name.strip()}' imehifadhiwa.")
                     st.rerun()
-
     with tab3:
-        st.markdown("### Give this business its own product fields")
-        st.caption("For example: brand, size, wattage, grain variety, colour or model.")
+        st.markdown("### Give this business its own product fields" if lang == "en" else "### Weka sifa maalum za bidhaa")
+        st.caption("For example: brand, size, wattage, grain variety, colour or model." if lang == "en" else "Kwa mfano: kampuni, ukubwa, rangi au aina.")
         current = st.session_state.custom_attributes.get(str(biz["business_id"]), [])
         if current:
-            st.write("Current attributes: **" + ", ".join(current) + "**")
+            st.write(("Current attributes: **" if lang == "en" else "Sifa za sasa: **") + ", ".join(current) + "**")
         else:
-            st.info("No custom attributes added yet for this shop.")
-
+            st.info("No custom attributes added yet for this shop." if lang == "en" else "Hakuna sifa maalum zilizoongezwa bado.")
         with st.form("add_attribute", clear_on_submit=True):
-            attr = st.text_input("New attribute", placeholder="e.g. Brand")
-            add = st.form_submit_button("＋ Add attribute", type="primary")
+            attr = st.text_input("New attribute" if lang == "en" else "Sifa mpya", placeholder="e.g. Brand")
+            add = st.form_submit_button("＋ Add attribute" if lang == "en" else "＋ Ongeza sifa", type="primary")
             if add:
                 if not attr.strip():
-                    st.error("Enter an attribute name.")
+                    st.error("Enter an attribute name." if lang == "en" else "Weka jina la sifa.")
                 elif attr.strip().lower() in [x.lower() for x in current]:
-                    st.warning("That attribute already exists.")
+                    st.warning("That attribute already exists." if lang == "en" else "Sifa hiyo tayari ipo.")
                 else:
                     st.session_state.custom_attributes[str(biz["business_id"])] = current + [attr.strip()]
-                    st.success(f"'{attr.strip()}' will now appear when adding products.")
+                    st.success(f"'{attr.strip()}' will now appear when adding products." if lang == "en" else f"'{attr.strip()}' itaonekana sasa ukiongeza bidhaa.")
                     st.rerun()
 
 # ============================================================
-# 4. RECORD A SALE (UPDATED WITH PAYMENT METHODS & REFERENCES)
+# 4. RECORD A SALE
 # ============================================================
 elif page == "Sales":
-    page_header("Record a sale", "Log a sale quickly, select payment method, and keep stock updated.")
+    page_header(t("sales_title", lang), t("sales_sub", lang))
     products = get_business_products(biz["business_id"])
     left, right = st.columns([1, 1.15], gap="large")
-
     with left:
-        st.markdown("### New sale entry")
+        st.markdown(f"### {t('new_sale_entry', lang)}")
         if not products:
-            st.info("Add products under **📦 Products & stock** before recording sales.")
+            st.info("Add products under **📦 Products & stock** before recording sales." if lang == "en" else "Ongeza bidhaa chini ya **📦 Bidhaa na stoo** kwanza.")
         else:
             product_map = {p["product_name"]: p for p in products}
-            chosen_name = st.selectbox("What did you sell?", list(product_map.keys()))
+            chosen_name = st.selectbox(t("what_did_you_sell", lang), list(product_map.keys()))
             chosen_product = product_map[chosen_name]
-
-            st.caption(
-                f"Available: **{chosen_product['stock_quantity']:g} units** • "
-                f"Standard price: **{money(chosen_product['selling_price'])}** each"
-            )
-
+            if lang == "en":
+                st.caption(
+                    f"Available: **{chosen_product['stock_quantity']:g} units** • "
+                    f"Standard price: **{money(chosen_product['selling_price'])}** each"
+                )
+            else:
+                st.caption(
+                    f"Zilizopo: **{chosen_product['stock_quantity']:g}** • "
+                    f"Bei ya kawaida: **{money(chosen_product['selling_price'])}** kila moja"
+                )
             with st.form("record_sale_form", clear_on_submit=True):
-                qty = st.number_input("Quantity sold", min_value=0.1, value=1.0, step=1.0)
+                qty = st.number_input(t("qty_sold", lang), min_value=0.1, value=1.0, step=1.0)
                 unit_price = st.number_input(
-                    "Selling price per unit (KSh)",
+                    t("unit_price_lbl", lang),
                     min_value=0.0,
                     value=float(chosen_product["selling_price"]),
                     step=1.0
                 )
-                
-                # --- Payment Method Selector & Reference Input ---
                 payment_options = ["Cash", "M-Pesa", "Visa / Card", "Bank Transfer"]
                 payment_method = st.selectbox(get_text("payment_method", lang=lang), payment_options)
-                
                 payment_reference = st.text_input(
                     get_text("payment_ref", lang=lang),
                     placeholder="e.g., QGH87XYZ12 (Required for M-Pesa/Card)"
                 )
-
                 total = qty * unit_price
-                st.info(f"Sale total: **{money(total)}** | Paid via: **{payment_method}**")
-
-                submit = st.form_submit_button("Confirm sale", type="primary", use_container_width=True)
+                if lang == "en":
+                    st.info(f"Sale total: **{money(total)}** | Paid via: **{payment_method}**")
+                else:
+                    st.info(f"Jumla ya mauzo: **{money(total)}** | Malipo: **{payment_method}**")
+                submit = st.form_submit_button(t("confirm_sale_btn", lang), type="primary", use_container_width=True)
                 if submit:
                     if qty > chosen_product["stock_quantity"]:
-                        st.error(f"Insufficient stock. Only {chosen_product['stock_quantity']:g} units available.")
+                        st.error(f"Insufficient stock. Only {chosen_product['stock_quantity']:g} units available." if lang == "en" else f"Stoo haitoshi. Zimebaki {chosen_product['stock_quantity']:g} pekee.")
                     elif payment_method in ["M-Pesa", "Visa / Card", "Bank Transfer"] and not payment_reference.strip():
-                        st.error(f"Please provide a transaction reference code for {payment_method}.")
+                        st.error(f"Please provide a transaction reference code for {payment_method}." if lang == "en" else f"Tafadhali weka nambari ya muamala kwa {payment_method}.")
                     else:
                         sale_items = [{
                             "product_id": chosen_product["product_id"],
@@ -386,52 +565,50 @@ elif page == "Sales":
                             lang=lang
                         )
                         if sale_id:
-                            st.success(f"Sale #{sale_id} recorded successfully! Total: {money(total)} ({payment_method})")
+                            st.success(f"Sale #{sale_id} recorded successfully! Total: {money(total)} ({payment_method})" if lang == "en" else f"Mauzo #{sale_id} yamerekodiwa! Jumla: {money(total)} ({payment_method})")
                             st.rerun()
                         else:
-                            st.error("Could not record sale. Please verify stock levels.")
-
+                            st.error("Could not record sale. Please verify stock levels." if lang == "en" else "Imeshindikana kurekodi mauzo. Hakikisha stoo ipo.")
     with right:
-        st.markdown("### Recent sales")
+        st.markdown(f"### {t('recent_sales', lang)}")
         sales = get_business_sales(biz["business_id"])
         if sales:
             df_sales = pd.DataFrame(sales)[[
                 "sale_day", "product_name", "quantity", "unit_price", "total", "payment_method", "payment_reference"
             ]].rename(
                 columns={
-                    "sale_day": "Date",
-                    "product_name": "Product",
-                    "quantity": "Qty",
-                    "unit_price": "Unit Price",
-                    "total": "Total (KSh)",
-                    "payment_method": "Payment",
-                    "payment_reference": "Reference / Code"
+                    "sale_day": "Date" if lang == "en" else "Tarehe",
+                    "product_name": "Product" if lang == "en" else "Bidhaa",
+                    "quantity": "Qty" if lang == "en" else "Idadi",
+                    "unit_price": "Unit Price" if lang == "en" else "Bei",
+                    "total": "Total (KSh)" if lang == "en" else "Jumla (KSh)",
+                    "payment_method": "Payment" if lang == "en" else "Malipo",
+                    "payment_reference": "Reference / Code" if lang == "en" else "Kumbukumbu"
                 }
             )
             st.dataframe(df_sales, use_container_width=True, hide_index=True)
         else:
-            st.info("Your recorded sales will appear here.")
+            st.info("Your recorded sales will appear here." if lang == "en" else "Mauzo yako yaliyorekodiwa yataonekana hapa.")
 
 # ============================================================
 # 5. EXPENSES
 # ============================================================
 elif page == "Expenses":
-    page_header("Expenses", "Keep an eye on the money going out.")
+    page_header(t("exp_title", lang), t("exp_sub", lang))
     left, right = st.columns([1, 1.15], gap="large")
-
     with left:
-        st.markdown("### Add an expense")
+        st.markdown(f"### {t('add_an_exp', lang)}")
         with st.form("add_expense", clear_on_submit=True):
-            description = st.text_input("What was the expense for?", placeholder="e.g. Delivery boda boda")
+            description = st.text_input(t("exp_for_lbl", lang), placeholder="e.g. Delivery boda boda")
             category = st.selectbox(
-                "Expense category",
+                t("exp_cat_lbl", lang),
                 ["Transport", "Rent", "Wages", "Utilities", "Packaging", "Other"]
             )
-            amount = st.number_input("Amount (KSh)", min_value=0.0, step=50.0)
-            submit = st.form_submit_button("Save expense", type="primary", use_container_width=True)
+            amount = st.number_input(t("amount_lbl", lang), min_value=0.0, step=50.0)
+            submit = st.form_submit_button(t("save_exp_btn", lang), type="primary", use_container_width=True)
             if submit:
                 if not description.strip() or amount <= 0:
-                    st.error("Enter a description and an amount greater than zero.")
+                    st.error("Enter a description and an amount greater than zero." if lang == "en" else "Weka maelezo na kiasi zaidi ya sifuri.")
                 else:
                     operations.record_expense(
                         business_id=biz["business_id"],
@@ -439,51 +616,48 @@ elif page == "Expenses":
                         amount=amount,
                         description=description.strip()
                     )
-                    st.success("Expense saved.")
+                    st.success("Expense saved." if lang == "en" else "Matumizi yamehifadhiwa.")
                     st.rerun()
-
     with right:
         expenses = get_business_expenses(biz["business_id"])
-        st.markdown("### Expense history")
+        st.markdown(f"### {t('exp_history', lang)}")
         if expenses:
-            st.metric("Total recorded expenses", money(sum(e["amount"] for e in expenses)))
+            st.metric(t("total_rec_exp", lang), money(sum(e["amount"] for e in expenses)))
             df_exp = pd.DataFrame(expenses)[["expense_day", "description", "category", "amount"]].rename(
                 columns={
-                    "expense_day": "Date",
-                    "description": "Description",
-                    "category": "Category",
-                    "amount": "Amount (KSh)"
+                    "expense_day": "Date" if lang == "en" else "Tarehe",
+                    "description": "Description" if lang == "en" else "Maelezo",
+                    "category": "Category" if lang == "en" else "Kundi",
+                    "amount": "Amount (KSh)" if lang == "en" else "Kiasi (KSh)"
                 }
             )
             st.dataframe(df_exp, use_container_width=True, hide_index=True)
         else:
-            st.info("No expenses recorded yet.")
+            st.info("No expenses recorded yet." if lang == "en" else "Hakuna matumizi yaliyorekodiwa bado.")
 
 # ============================================================
 # 6. SUPPLIER RESTOCKS
 # ============================================================
 elif page == "Restocks":
-    page_header("Supplier restocks", "Record incoming stock deliveries to replenish inventory.")
+    page_header(t("restock_title", lang), t("restock_sub", lang))
     products = get_business_products(biz["business_id"])
-
     if not products:
-        st.info("Add products under **📦 Products & stock** before recording restocks.")
+        st.info("Add products under **📦 Products & stock** before recording restocks." if lang == "en" else "Ongeza bidhaa chini ya **📦 Bidhaa na stoo** kwanza.")
     else:
         product_map = {p["product_name"]: p for p in products}
-        chosen_name = st.selectbox("Select product restocked", list(product_map.keys()))
+        chosen_name = st.selectbox(t("select_prod_restock", lang), list(product_map.keys()))
         chosen_p = product_map[chosen_name]
-
         with st.form("restock_form", clear_on_submit=True):
             c1, c2 = st.columns(2)
-            qty_added = c1.number_input("Quantity received", min_value=1.0, value=10.0, step=1.0)
+            qty_added = c1.number_input(t("qty_received", lang), min_value=1.0, value=10.0, step=1.0)
             buy_cost = c2.number_input(
-                "Unit buying price (KSh)",
+                t("buying_price", lang),
                 min_value=0.0,
                 value=float(chosen_p["buying_price"]),
                 step=1.0
             )
-            notes = st.text_input("Supplier or delivery note", placeholder="e.g. Wholesale delivery")
-            submit = st.form_submit_button("Confirm restock", type="primary")
+            notes = st.text_input(t("delivery_note", lang), placeholder="e.g. Wholesale delivery")
+            submit = st.form_submit_button(t("confirm_restock_btn", lang), type="primary")
             if submit:
                 operations.record_purchase(
                     business_id=biz["business_id"],
@@ -496,31 +670,26 @@ elif page == "Restocks":
                     notes=notes.strip(),
                     lang=lang
                 )
-                st.success(f"Added {qty_added:g} units of {chosen_name} to stock.")
+                st.success(f"Added {qty_added:g} units of {chosen_name} to stock." if lang == "en" else f"Zimeongezwa {qty_added:g} za {chosen_name} kwenye stoo.")
                 st.rerun()
 
 # ============================================================
 # 7. DAILY RECORDS
 # ============================================================
 elif page == "Daily records":
-    page_header("Daily records", "Review a specific day's sales, expenses, and overall ledger summary.")
-    chosen_date = st.date_input("Choose a date", value=date.today())
+    page_header(t("daily_title", lang), t("daily_sub", lang))
+    chosen_date = st.date_input(t("choose_date", lang), value=date.today())
     ds = chosen_date.isoformat()
-
     sales = [s for s in get_business_sales(biz["business_id"]) if s["sale_day"] == ds]
     expenses = [e for e in get_business_expenses(biz["business_id"]) if e["expense_day"] == ds]
-
     sales_sum = sum(s["total"] for s in sales)
     exp_sum = sum(e["amount"] for e in expenses)
-
     a, b, c = st.columns(3)
-    a.metric("Sales on date", money(sales_sum))
-    b.metric("Expenses on date", money(exp_sum))
-    c.metric("Sales less expenses", money(sales_sum - exp_sum))
-
-    st.caption("This is a daily cashflow summary. Inventory restock costs and credit balances are tracked separately.")
-
-    with st.expander("See sales for this date", expanded=True):
+    a.metric(t("sales_on_date", lang), money(sales_sum))
+    b.metric(t("exp_on_date", lang), money(exp_sum))
+    c.metric(t("sales_less_exp", lang), money(sales_sum - exp_sum))
+    st.caption("This is a daily cashflow summary. Inventory restock costs and credit balances are tracked separately." if lang == "en" else "Huu ni muhtasari wa mtiririko wa fedha wa siku.")
+    with st.expander("See sales for this date" if lang == "en" else "Angalia mauzo ya tarehe hii", expanded=True):
         if sales:
             st.dataframe(
                 pd.DataFrame(sales)[["sale_date", "product_name", "quantity", "unit_price", "total", "payment_method"]],
@@ -528,9 +697,8 @@ elif page == "Daily records":
                 hide_index=True
             )
         else:
-            st.write("No sales recorded on this date.")
-
-    with st.expander("See expenses for this date", expanded=True):
+            st.write("No sales recorded on this date." if lang == "en" else "Hakuna mauzo yaliyorekodiwa tarehe hii.")
+    with st.expander("See expenses for this date" if lang == "en" else "Angalia matumizi ya tarehe hii", expanded=True):
         if expenses:
             st.dataframe(
                 pd.DataFrame(expenses)[["expense_date", "category", "description", "amount"]],
@@ -538,55 +706,49 @@ elif page == "Daily records":
                 hide_index=True
             )
         else:
-            st.write("No expenses recorded on this date.")
+            st.write("No expenses recorded on this date." if lang == "en" else "Hakuna matumizi yaliyorekodiwa tarehe hii.")
 
 # ============================================================
 # 8. REPORTS
 # ============================================================
 elif page == "Reports":
-    page_header("Reports & insights", f"Overall performance for {biz['business_name']}.")
+    page_header(t("reports_title", lang), t("reports_sub", lang, biz=biz["business_name"]))
     summary = get_business_summary(biz["business_id"])
     sales = get_business_sales(biz["business_id"])
     expenses = get_business_expenses(biz["business_id"])
-
-    # Safe fallbacks preventing NoneType errors
     total_sales = summary.get("total_revenue", 0.0) if summary else sum(s["total"] for s in sales)
     total_expenses = summary.get("total_expenses", 0.0) if summary else sum(e["amount"] for e in expenses)
     total_restocks = summary.get("total_restock_cost", 0.0) if summary else 0.0
-    
+
     total_sales = total_sales if total_sales is not None else 0.0
     total_expenses = total_expenses if total_expenses is not None else 0.0
     total_restocks = total_restocks if total_restocks is not None else 0.0
     total_profit = sum(s["estimated_profit"] for s in sales) if sales else 0.0
-
     a, b, c, d = st.columns(4)
-    a.metric("Total sales revenue", money(total_sales))
-    b.metric("Estimated gross profit", money(total_profit))
-    c.metric("Total expenses", money(total_expenses))
-    d.metric("Net cash position", money(total_sales - total_expenses - total_restocks))
-
+    a.metric(t("total_sales_rev", lang), money(total_sales))
+    b.metric(t("est_gross_profit", lang), money(total_profit))
+    c.metric(t("total_expenses", lang), money(total_expenses))
+    d.metric(t("net_cash_pos", lang), money(total_sales - total_expenses - total_restocks))
     if sales:
-        st.markdown("### Daily sales trend")
+        st.markdown("### Daily sales trend" if lang == "en" else "### Mwenendo wa mauzo ya kila siku")
         daily = pd.DataFrame(sales).groupby("sale_day", as_index=False)["total"].sum()
         st.line_chart(daily.set_index("sale_day"))
-
         col_l, col_r = st.columns(2)
         with col_l:
-            st.markdown("### Top selling products")
+            st.markdown("### Top selling products" if lang == "en" else "### Bidhaa zinazouzwa zaidi")
             top_prods = pd.DataFrame(sales).groupby("product_name", as_index=False)["total"].sum().sort_values("total", ascending=False)
             st.bar_chart(top_prods.set_index("product_name"))
         with col_r:
-            st.markdown("### Sales by Payment Method")
+            st.markdown("### Sales by Payment Method" if lang == "en" else "### Mauzo kwa njia ya malipo")
             pay_methods = pd.DataFrame(sales).groupby("payment_method", as_index=False)["total"].sum()
             st.bar_chart(pay_methods.set_index("payment_method"))
     else:
-        st.info("Once you record sales, your charts and insights will appear here.")
-
+        st.info("Once you record sales, your charts and insights will appear here." if lang == "en" else "Ukirekodi mauzo, chati na takwimu zitaonekana hapa.")
     if expenses:
-        st.markdown("### Expenses by category")
+        st.markdown("### Expenses by category" if lang == "en" else "### Matumizi kwa makundi")
         expdf = pd.DataFrame(expenses).groupby("category", as_index=False)["amount"].sum()
         st.bar_chart(expdf.set_index("category"))
 
 st.divider()
-st.caption("Biashara • Built for everyday businesses")
+st.caption(t("footer_caption", lang))
 conn.close()
