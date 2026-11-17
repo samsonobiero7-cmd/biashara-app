@@ -16,6 +16,12 @@ st.set_page_config(
 )
 
 # ---------- Forest-Green & Clean Card Styling (Light/Dark Mode Compatible) ----------
+
+# ---------- Custom App Icon & PWA Manifest ----------
+st.markdown("""
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="logo.svg">
+""", unsafe_allow_html=True)
 st.markdown("""
 <style>
 :root { --green:#16764a; }
