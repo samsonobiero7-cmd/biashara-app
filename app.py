@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import date
+import hashlib
 import os
 from pathlib import Path
 import psycopg
@@ -318,12 +319,17 @@ owner_email = require_signed_in_owner()
 
 
 @st.cache_resource
-def initialize_biashara_database():
+def initialize_biashara_database(schema_fingerprint):
     setup_biashara.create_biashara_database()
 
 
+# Re-run cached initialization whenever the database migration code changes.
+schema_fingerprint = hashlib.sha256(
+    (Path(__file__).parent / "setup_biashara.py").read_bytes()
+).hexdigest()
+
 try:
-    initialize_biashara_database()
+    initialize_biashara_database(schema_fingerprint)
 except RuntimeError as error:
     st.error(str(error))
     st.stop()
