@@ -1,8 +1,9 @@
 const DATABASE_NAME = "biashara-offline";
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const THEME_STORAGE_KEY = "biashara-offline-theme-mode";
 const catalogStoreName = "catalogs";
 const saleStoreName = "sales";
+const productStoreName = "products";
 
 let activeCatalog = null;
 let cart = [];
@@ -17,6 +18,9 @@ function openDatabase() {
       }
       if (!database.objectStoreNames.contains(saleStoreName)) {
         database.createObjectStore(saleStoreName, { keyPath: "client_sale_id" });
+      }
+      if (!database.objectStoreNames.contains(productStoreName)) {
+        database.createObjectStore(productStoreName, { keyPath: "client_product_id" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -70,6 +74,25 @@ async function saveSaleAndCatalog(sale, catalog) {
   }
 }
 
+async function saveProductAndCatalog(product, catalog) {
+  const database = await openDatabase();
+  try {
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction(
+        [catalogStoreName, productStoreName],
+        "readwrite",
+      );
+      transaction.objectStore(productStoreName).add(product);
+      transaction.objectStore(catalogStoreName).put(catalog);
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } finally {
+    database.close();
+  }
+}
+
 async function savePendingReference(clientSaleId, reference) {
   const database = await openDatabase();
   try {
@@ -103,7 +126,7 @@ function setConnectionStatus() {
   const status = document.getElementById("connection-status");
   status.textContent = navigator.onLine
     ? "Internet available"
-    : "Offline — sales save on this device";
+    : "Offline — sales and products save on this device";
   status.classList.toggle("offline", !navigator.onLine);
 }
 
@@ -153,9 +176,21 @@ function formatMoney(value) {
   })}`;
 }
 
+function productKey(product) {
+  return product.client_product_id
+    ? `client:${product.client_product_id}`
+    : `product:${Number(product.product_id)}`;
+}
+
+function cartItemProductKey(item) {
+  return item.client_product_id
+    ? `client:${item.client_product_id}`
+    : `product:${Number(item.product_id)}`;
+}
+
 function selectedProduct() {
-  const productId = Number(document.getElementById("product-select").value);
-  return activeCatalog.products.find((product) => Number(product.product_id) === productId);
+  const key = document.getElementById("product-select").value;
+  return activeCatalog.products.find((product) => productKey(product) === key);
 }
 
 function renderProducts() {
@@ -165,7 +200,7 @@ function renderProducts() {
 
   activeCatalog.products.forEach((product) => {
     const option = document.createElement("option");
-    option.value = product.product_id;
+    option.value = productKey(product);
     option.textContent = `${product.product_name} — ${product.stock_quantity} packs/items in stock`;
     productSelect.append(option);
   });
@@ -181,7 +216,7 @@ function renderCart() {
 
   cart.forEach((item, index) => {
     const product = activeCatalog.products.find(
-      (candidate) => Number(candidate.product_id) === Number(item.product_id),
+      (candidate) => productKey(candidate) === cartItemProductKey(item),
     );
     if (!product) {
       return;
@@ -209,16 +244,27 @@ function renderCart() {
 }
 
 async function renderPendingCount() {
-  const sales = await getAll(saleStoreName);
+  const [sales, products] = await Promise.all([
+    getAll(saleStoreName),
+    getAll(productStoreName),
+  ]);
   const pending = sales.filter(
     (sale) =>
       sale.owner_email === activeCatalog.owner_email &&
       Number(sale.business_id) === Number(activeCatalog.business_id),
   );
+  const pendingProducts = products.filter(
+    (product) =>
+      product.owner_email === activeCatalog.owner_email &&
+      Number(product.business_id) === Number(activeCatalog.business_id),
+  );
+  const saleLabel = pending.length === 1 ? "1 sale" : `${pending.length} sales`;
+  const productLabel =
+    pendingProducts.length === 1
+      ? "1 product"
+      : `${pendingProducts.length} products`;
   document.getElementById("pending-count").textContent =
-    pending.length === 1
-      ? "1 sale is waiting to sync."
-      : `${pending.length} sales are waiting to sync.`;
+    `${saleLabel} and ${productLabel} waiting to sync.`;
   const list = document.getElementById("pending-sales");
   list.replaceChildren();
   pending.forEach((sale) => {
@@ -247,6 +293,14 @@ async function renderPendingCount() {
     });
     row.append(summary, reference, save);
     list.append(row);
+  });
+
+  const productList = document.getElementById("pending-products");
+  productList.replaceChildren();
+  pendingProducts.forEach((product) => {
+    const row = document.createElement("li");
+    row.textContent = `${product.product_name} — waiting to sync`;
+    productList.append(row);
   });
 }
 
@@ -303,8 +357,9 @@ async function addItemToCart() {
     return;
   }
 
+  const selectedKey = productKey(product);
   const alreadyInCart = cart
-    .filter((item) => Number(item.product_id) === Number(product.product_id))
+    .filter((item) => cartItemProductKey(item) === selectedKey)
     .reduce((sum, item) => sum + item.quantity, 0);
   if (quantity + alreadyInCart > Number(product.stock_quantity)) {
     message.textContent = `Only ${product.stock_quantity} packs/items are in this device's saved stock.`;
@@ -312,7 +367,9 @@ async function addItemToCart() {
   }
 
   cart.push({
-    product_id: Number(product.product_id),
+    ...(product.client_product_id
+      ? { client_product_id: product.client_product_id }
+      : { product_id: Number(product.product_id) }),
     quantity,
     unit_price: unitPrice,
   });
@@ -350,7 +407,7 @@ async function saveSaleOffline() {
     ...activeCatalog,
     products: activeCatalog.products.map((product) => {
       const sold = cart
-        .filter((item) => Number(item.product_id) === Number(product.product_id))
+        .filter((item) => cartItemProductKey(item) === productKey(product))
         .reduce((sum, item) => sum + item.quantity, 0);
       return sold
         ? { ...product, stock_quantity: Number(product.stock_quantity) - sold }
@@ -366,6 +423,71 @@ async function saveSaleOffline() {
   await renderPendingCount();
   document.getElementById("payment-reference").value = "";
   message.textContent = "Sale saved on this device. It will sync when you're online.";
+}
+
+async function addProductOffline() {
+  const message = document.getElementById("product-message");
+  message.textContent = "";
+  const productName = document.getElementById("new-product-name").value.trim();
+  const rawValues = [
+    document.getElementById("new-product-stock").value,
+    document.getElementById("new-product-reorder").value,
+    document.getElementById("new-product-buying-price").value,
+    document.getElementById("new-product-selling-price").value,
+  ];
+  const [stockQuantity, reorderLevel, buyingPrice, sellingPrice] =
+    rawValues.map(Number);
+
+  if (!productName) {
+    message.textContent = "Enter a product name or size.";
+    return;
+  }
+  const duplicate = activeCatalog.products.some(
+    (product) => product.product_name.trim().toLocaleLowerCase() === productName.toLocaleLowerCase(),
+  );
+  if (duplicate) {
+    message.textContent =
+      "A product with this name is already saved on this device. Select it from the list.";
+    return;
+  }
+  if (
+    rawValues.some((value) => !value.trim()) ||
+    ![stockQuantity, reorderLevel, buyingPrice, sellingPrice].every(
+      (value) => Number.isFinite(value) && value >= 0,
+    )
+  ) {
+    message.textContent =
+      "Stock, reorder level, and prices must be valid numbers of zero or more.";
+    return;
+  }
+
+  const product = {
+    client_product_id: crypto.randomUUID(),
+    owner_email: activeCatalog.owner_email,
+    business_id: Number(activeCatalog.business_id),
+    product_name: productName,
+    stock_quantity: stockQuantity,
+    reorder_level: reorderLevel,
+    buying_price: buyingPrice,
+    selling_price: sellingPrice,
+  };
+  const catalog = {
+    ...activeCatalog,
+    products: [...activeCatalog.products, { ...product, product_id: null }],
+  };
+
+  await saveProductAndCatalog(product, catalog);
+  activeCatalog = catalog;
+  document.getElementById("new-product-name").value = "";
+  document.getElementById("new-product-stock").value = "0";
+  document.getElementById("new-product-reorder").value = "5";
+  document.getElementById("new-product-buying-price").value = "0";
+  document.getElementById("new-product-selling-price").value = "0";
+  renderProducts();
+  renderCart();
+  await renderPendingCount();
+  message.textContent =
+    "Product saved on this device. It will be added to your business when you sync online.";
 }
 
 async function start() {
@@ -401,6 +523,12 @@ async function start() {
     saveSaleOffline().catch((error) => {
       document.getElementById("sale-message").textContent =
         `Sale was not saved: ${error.message}`;
+    });
+  });
+  document.getElementById("save-product").addEventListener("click", () => {
+    addProductOffline().catch((error) => {
+      document.getElementById("product-message").textContent =
+        `Product was not saved: ${error.message}`;
     });
   });
 

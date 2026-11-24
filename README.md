@@ -29,11 +29,13 @@ The app's backup download is scoped to the signed-in owner's businesses.
 
 The offline sales page is a separate, installable test page at
 `/app/static/offline/index.html`. Each device must sign in and open the online
-Sales page first so its business and product list are saved locally. Add new
-products or pack sizes in **Products & stock**, then open the online Sales page
-to refresh the catalog on that device. Each pack size should be a separate
-product with its own stock and price. Open the offline page once while online
-so its files are cached; then it can record sales without a connection.
+Sales page first so its business and full product list are saved locally. While
+offline, the page can record sales and add products with their opening stock,
+buying price, selling price, and reorder level. Each pack size should be a
+separate product with its own stock and price. New offline products sync before
+sales that use them when the user signs in again and opens the online Sales
+page. Open the offline page once while online so its files are cached; then it
+can record sales and products without a connection.
 
 Keep `OFFLINE_CHECKOUT_ENABLED` unset or `false` until the offline flow has
 been validated on a separate test deployment and database. Before enabling it
@@ -42,9 +44,11 @@ production database and take a backup. Set `OFFLINE_CHECKOUT_ENABLED = true`
 in that deployment's Streamlit Cloud Secrets to expose the offline checkout
 link; offline sales sync into whichever database that deployment uses.
 
-Offline sales stay in that device's browser until the user signs in again and
-opens the online Sales page. Do not clear the browser's site data or uninstall
-the offline page until its pending sales have synced. If several devices record
+Offline products and sales stay in that device's browser until the user signs in
+again and opens the online Sales page. Do not clear the browser's site data or
+uninstall the offline page until all pending records have synced. An offline
+product with a name that already exists in the business must be resolved by
+refreshing the catalog and using the existing product. If several devices record
 sales while disconnected, synced sales are kept and stock that falls below zero
 must be checked by the business owner. Use a device protected with a screen lock;
 offline products and pending sales are stored locally in that browser.

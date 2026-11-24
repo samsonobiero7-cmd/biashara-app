@@ -30,8 +30,9 @@
       <section id="setup-message" class="card" hidden>
         <h2>Prepare this device first</h2>
         <p>
-          While online, sign in to Biashara Manager, add products under Products &amp; stock,
-          then open the Sales page. That saves your product list on this device for offline use.
+          While online, sign in to Biashara Manager and open the Sales page once. This saves
+          your business and existing products on this device; you can also add products here
+          later while offline.
         </p>
         <a class="button" href="../../../">Open Biashara Manager</a>
       </section>
@@ -45,9 +46,9 @@
         <div class="card">
           <h2>Products</h2>
           <p class="muted">
-            Only products saved on this device appear here. Add each size as a separate
-            product online (e.g. Cooking oil 500 ml and Cooking oil 2 L), then open the
-            Sales page to refresh this list.
+            Products saved from the online catalog are available here. You can also add a
+            product while offline; it will be created in your business when you sync online.
+            Add each size as a separate product with its own price and stock.
           </p>
           <a class="button" href="../../../">Manage products online</a>
           <label for="product-select">Product</label>
@@ -63,6 +64,32 @@
             </label>
           </div>
           <button id="add-item" class="button">Add to sale</button>
+
+          <h3>Add a product offline</h3>
+          <label for="new-product-name">Product name or size</label>
+          <input id="new-product-name" type="text" maxlength="120" autocomplete="off">
+          <div class="form-row">
+            <label>
+              Opening stock
+              <input id="new-product-stock" type="number" min="0" step="0.01" value="0">
+            </label>
+            <label>
+              Alert when stock is below
+              <input id="new-product-reorder" type="number" min="0" step="0.01" value="5">
+            </label>
+          </div>
+          <div class="form-row">
+            <label>
+              Buying price (KSh)
+              <input id="new-product-buying-price" type="number" min="0" step="0.01" value="0">
+            </label>
+            <label>
+              Selling price (KSh)
+              <input id="new-product-selling-price" type="number" min="0" step="0.01" value="0">
+            </label>
+          </div>
+          <button id="save-product" class="button" type="button">Save product on this device</button>
+          <p id="product-message" class="message" aria-live="polite"></p>
         </div>
 
         <div class="card">
@@ -85,6 +112,7 @@
         <div class="card">
           <h2>Waiting to sync</h2>
           <p id="pending-count">No unsynced sales.</p>
+          <ul id="pending-products" class="cart"></ul>
           <ul id="pending-sales" class="cart"></ul>
           <p class="muted">
             When internet is back, sign in to Biashara Manager and open the Sales

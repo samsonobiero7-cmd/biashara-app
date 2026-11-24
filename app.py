@@ -387,7 +387,8 @@ def get_business_products(bid, owner_email):
         cur = conn.cursor()
         cur.execute("""
             SELECT p.product_id, p.product_name, p.buying_price, p.selling_price,
-                   p.stock_quantity, p.reorder_level
+                   p.stock_quantity, p.reorder_level,
+                   p.offline_product_id::text AS offline_product_id
             FROM products p
             JOIN businesses b ON b.business_id = p.business_id
             WHERE p.business_id = %s AND b.owner_email = %s
@@ -401,9 +402,13 @@ def get_business_products(bid, owner_email):
 def sync_offline_sales(business, products, lang):
     bid = int(business["business_id"])
     ack_ids = set(st.session_state.get("offline_ack_ids", []))
+    ack_product_ids = set(st.session_state.get("offline_ack_product_ids", []))
     component_key = f"offline-sync-{bid}"
     component_state = st.session_state.get(component_key, {})
     pending_signature = component_state.get("pending_signature", "[]")
+    pending_products_signature = component_state.get(
+        "pending_products_signature", "[]"
+    )
     result = OFFLINE_SYNC_COMPONENT(
         data={
             "owner_email": owner_email,
@@ -411,22 +416,40 @@ def sync_offline_sales(business, products, lang):
             "business_name": business["business_name"],
             "products": products,
             "ack_ids": sorted(ack_ids),
+            "ack_product_ids": sorted(ack_product_ids),
             "pending_signature": pending_signature,
+            "pending_products_signature": pending_products_signature,
         },
         default={
             "catalog_ready": component_state.get("catalog_ready", False),
             "pending_sales": component_state.get("pending_sales", []),
             "pending_signature": pending_signature,
+            "pending_products": component_state.get("pending_products", []),
+            "pending_products_signature": pending_products_signature,
             "bridge_error": component_state.get("bridge_error"),
         },
         on_catalog_ready_change=lambda: None,
         on_pending_sales_change=lambda: None,
         on_pending_signature_change=lambda: None,
+        on_pending_products_change=lambda: None,
+        on_pending_products_signature_change=lambda: None,
         on_bridge_error_change=lambda: None,
         key=component_key,
     )
 
     notice = st.session_state.pop("offline_sync_notice", None)
+    product_notice = st.session_state.pop("offline_product_sync_notice", None)
+    product_errors_notice = st.session_state.pop(
+        "offline_product_sync_errors", None
+    )
+    if product_notice:
+        st.success(
+            f"Synced {product_notice} offline product(s)."
+            if lang == "en"
+            else f"Bidhaa {product_notice} za nje ya mtandao zimesawazishwa."
+        )
+    if product_errors_notice:
+        st.error("Offline products need attention: " + " ".join(product_errors_notice))
     if notice:
         if notice["stock_conflict"]:
             st.warning(
@@ -453,6 +476,78 @@ def sync_offline_sales(business, products, lang):
             if lang == "en"
             else "Orodha ya bidhaa ya kifaa hiki imehifadhiwa kwa mauzo ya nje ya mtandao."
         )
+
+    pending_products = getattr(result, "pending_products", None)
+    if pending_products is None:
+        return
+    if not isinstance(pending_products, list):
+        st.error("Offline products could not be read. They remain saved on this device.")
+        return
+    if not pending_products:
+        st.session_state["offline_ack_product_ids"] = []
+
+    product_errors = []
+    accepted_product_ids = set()
+    product_ids_by_client_id = {
+        str(product["offline_product_id"]): int(product["product_id"])
+        for product in products
+        if product.get("offline_product_id")
+    }
+    for product in pending_products:
+        if not isinstance(product, dict):
+            product_errors.append("An offline product has an invalid format.")
+            continue
+        client_product_id = product.get("client_product_id")
+        if not isinstance(client_product_id, str):
+            product_errors.append("An offline product has an invalid ID.")
+            continue
+        if client_product_id in ack_product_ids:
+            continue
+        if product.get("owner_email") != owner_email:
+            product_errors.append(
+                "An offline product belongs to a different signed-in account."
+            )
+            continue
+        try:
+            product_business_id = int(product.get("business_id", -1))
+        except (TypeError, ValueError):
+            product_errors.append("An offline product has an invalid business ID.")
+            continue
+        if product_business_id != bid:
+            product_errors.append("An offline product belongs to a different business.")
+            continue
+
+        try:
+            product_id = operations.add_offline_product(
+                business_id=bid,
+                product_name=product.get("product_name"),
+                buying_price=product.get("buying_price"),
+                selling_price=product.get("selling_price"),
+                stock_quantity=product.get("stock_quantity"),
+                owner_email=owner_email,
+                offline_product_id=client_product_id,
+                reorder_level=product.get("reorder_level", 5.0),
+            )
+        except (PermissionError, ValueError) as error:
+            product_errors.append(str(error))
+            continue
+
+        product_ids_by_client_id[client_product_id] = int(product_id)
+        accepted_product_ids.add(client_product_id)
+
+    if accepted_product_ids:
+        st.session_state["offline_ack_product_ids"] = sorted(
+            ack_product_ids | accepted_product_ids
+        )
+        st.session_state["offline_product_sync_notice"] = len(
+            accepted_product_ids
+        )
+        if product_errors:
+            st.session_state["offline_product_sync_errors"] = product_errors
+        st.rerun()
+
+    if product_errors:
+        st.error("Offline products need attention: " + " ".join(product_errors))
 
     pending_sales = getattr(result, "pending_sales", None)
     if pending_sales is None:
@@ -495,9 +590,22 @@ def sync_offline_sales(business, products, lang):
             continue
 
         sale_items = []
+        missing_offline_product = False
         try:
             for item in raw_items:
-                product_id = int(item["product_id"])
+                if not isinstance(item, dict):
+                    raise ValueError
+                if "product_id" in item:
+                    product_id = int(item["product_id"])
+                elif isinstance(item.get("client_product_id"), str):
+                    product_id = product_ids_by_client_id.get(
+                        item["client_product_id"]
+                    )
+                    if product_id is None:
+                        missing_offline_product = True
+                        raise ValueError
+                else:
+                    raise ValueError
                 quantity = float(item["quantity"])
                 unit_price = float(item["unit_price"])
                 if product_id <= 0 or quantity <= 0 or unit_price < 0:
@@ -510,7 +618,13 @@ def sync_offline_sales(business, products, lang):
                     }
                 )
         except (KeyError, TypeError, ValueError):
-            errors.append("An offline sale has invalid product details.")
+            if missing_offline_product:
+                errors.append(
+                    "An offline sale uses a new product that has not synced yet; "
+                    "it remains saved on this device."
+                )
+            else:
+                errors.append("An offline sale has invalid product details.")
             continue
 
         payment_method = sale.get("payment_method", "Cash")
@@ -812,7 +926,14 @@ elif page == "Products":
     tab1, tab2, tab3 = st.tabs([t("tab_prod_list", lang), t("tab_add_prod", lang), t("tab_custom_attr", lang)])
     with tab1:
         if products:
-            df = pd.DataFrame(products).rename(columns={
+            df = pd.DataFrame(products)[[
+                "product_id",
+                "product_name",
+                "buying_price",
+                "selling_price",
+                "stock_quantity",
+                "reorder_level",
+            ]].rename(columns={
                 "product_id": "ID",
                 "product_name": "Product" if lang == "en" else "Bidhaa",
                 "buying_price": "Buying price (KSh)" if lang == "en" else "Bei ya kununua (KSh)",
