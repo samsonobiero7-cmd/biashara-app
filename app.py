@@ -343,7 +343,11 @@ def get_business_summary(bid):
 # ---------- Sidebar ----------
 businesses = get_all_businesses()
 with st.sidebar:
-    st.markdown("# 🟢 Biashara")
+    logo_col, title_col = st.columns([1, 4])
+    with logo_col:
+        st.image("logo.png", width=40)
+    with title_col:
+        st.markdown("## Biashara")
     lang_choice = st.selectbox(
         "Language / Lugha",
         ["English", "Kiswahili"],
