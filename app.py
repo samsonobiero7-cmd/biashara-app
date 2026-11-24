@@ -10,15 +10,16 @@ from translations import get_text
 # ------------------------------------------------------------
 st.set_page_config(
     page_title="Biashara | Business Manager",
-    page_icon="logo.svg",
+    page_icon="logo.png",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ---------- Custom Mobile App Icon & PWA Manifest Links ----------
 st.markdown("""
-    <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <link rel="manifest" href="/app/static/manifest.json">
+    <link rel="icon" type="image/png" href="/app/static/icon-192.png">
+    <link rel="apple-touch-icon" href="/app/static/icon-192.png">
 """, unsafe_allow_html=True)
 
 # ---------- Forest-Green & Clean Card Styling (Light/Dark Mode Compatible) ----------
@@ -343,7 +344,12 @@ def get_business_summary(bid):
 # ---------- Sidebar ----------
 businesses = get_all_businesses()
 with st.sidebar:
-    st.markdown("# 🟢 Biashara")
+    col_logo, col_title = st.columns([1, 4], vertical_alignment="center")
+    with col_logo:
+        st.image("logo.png", width=36)
+    with col_title:
+        st.markdown("## Biashara")
+
     lang_choice = st.selectbox(
         "Language / Lugha",
         ["English", "Kiswahili"],
