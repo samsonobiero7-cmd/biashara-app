@@ -276,8 +276,15 @@ def require_signed_in_owner():
 
 
 owner_email = require_signed_in_owner()
-try:
+
+
+@st.cache_resource
+def initialize_biashara_database():
     setup_biashara.create_biashara_database()
+
+
+try:
+    initialize_biashara_database()
 except RuntimeError as error:
     st.error(str(error))
     st.stop()
@@ -469,7 +476,7 @@ with st.sidebar:
     st.caption(t("sidebar_footer_2", lang))
     st.download_button(
         "Download my data backup",
-        data=operations.get_owner_backup(owner_email),
+        data=lambda: operations.get_owner_backup(owner_email),
         file_name=f"biashara-backup-{date.today().isoformat()}.json",
         mime="application/json",
         use_container_width=True,
