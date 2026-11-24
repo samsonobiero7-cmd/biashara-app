@@ -1,5 +1,6 @@
 const DATABASE_NAME = "biashara-offline";
 const DATABASE_VERSION = 1;
+const THEME_STORAGE_KEY = "biashara-theme-mode";
 const catalogStoreName = "catalogs";
 const saleStoreName = "sales";
 
@@ -104,6 +105,45 @@ function setConnectionStatus() {
     ? "Internet available"
     : "Offline — sales save on this device";
   status.classList.toggle("offline", !navigator.onLine);
+}
+
+function applyTheme(mode) {
+  const isDark = mode === "dark";
+  document.documentElement.dataset.theme = isDark ? "dark" : "light";
+
+  const toggle = document.getElementById("theme-toggle");
+  toggle.textContent = isDark ? "Light mode" : "Dark mode";
+  toggle.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+  toggle.setAttribute("aria-pressed", String(isDark));
+
+  document
+    .querySelector('meta[name="theme-color"]')
+    .setAttribute("content", isDark ? "#111813" : "#ffffff");
+}
+
+function initializeTheme() {
+  const storedMode = localStorage.getItem(THEME_STORAGE_KEY);
+  const mode = storedMode === "dark" ? "dark" : "light";
+  if (storedMode !== mode) {
+    localStorage.setItem(THEME_STORAGE_KEY, mode);
+  }
+  applyTheme(mode);
+
+  document.getElementById("theme-toggle").addEventListener("click", () => {
+    const nextMode =
+      document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    localStorage.setItem(THEME_STORAGE_KEY, nextMode);
+    applyTheme(nextMode);
+  });
+
+  window.addEventListener("storage", (event) => {
+    if (
+      event.key === THEME_STORAGE_KEY &&
+      (event.newValue === "light" || event.newValue === "dark")
+    ) {
+      applyTheme(event.newValue);
+    }
+  });
 }
 
 function formatMoney(value) {
@@ -330,6 +370,7 @@ async function saveSaleOffline() {
 }
 
 async function start() {
+  initializeTheme();
   setConnectionStatus();
   window.addEventListener("online", setConnectionStatus);
   window.addEventListener("offline", setConnectionStatus);
