@@ -4,9 +4,10 @@ from datetime import date
 import setup_biashara
 import operations
 from translations import get_text
+from streamlit.errors import StreamlitSecretNotFoundError
 
 # ------------------------------------------------------------
-# BIASHARA — SQLite-Backed Business Manager & POS
+# BIASHARA — PostgreSQL-Backed Business Manager & POS
 # ------------------------------------------------------------
 st.set_page_config(
     page_title="Biashara | Business Manager",
@@ -70,7 +71,7 @@ UI_STRINGS = {
         "current_biz": "CURRENT BUSINESS",
         "add_first_biz": "Add your first business to get started.",
         "sidebar_footer_1": "Simple tools for everyday business.",
-        "sidebar_footer_2": "Biashara • Connected to SQLite",
+        "sidebar_footer_2": "Biashara • Connected to Supabase",
         "nav_overview": "🏠  Overview",
         "nav_businesses": "🏪  My businesses",
         "nav_products": "📦  Products & stock",
@@ -98,7 +99,7 @@ UI_STRINGS = {
         "biz_name_lbl": "Business name",
         "biz_cat_lbl": "Business category",
         "add_biz_btn": "＋ Add business",
-        "biz_caption": "Each business maintains its own separate inventory, sales, and expense records in SQLite.",
+        "biz_caption": "Each business maintains its own separate inventory, sales, and expense records in Supabase.",
         "prod_title": "Products & stock",
         "prod_sub": "Keep track of what {biz} sells.",
         "tab_prod_list": "📦 Product list",
@@ -152,7 +153,7 @@ UI_STRINGS = {
         "current_biz": "BIASHARA YA SASA",
         "add_first_biz": "Ongeza biashara yako ya kwanza ili kuanza.",
         "sidebar_footer_1": "Zana rahisi kwa biashara ya kila siku.",
-        "sidebar_footer_2": "Biashara • Imeunganishwa na SQLite",
+        "sidebar_footer_2": "Biashara • Imeunganishwa na Supabase",
         "nav_overview": "🏠  Muhtasari",
         "nav_businesses": "🏪  Biashara zangu",
         "nav_products": "📦  Bidhaa na stoo",
@@ -180,7 +181,7 @@ UI_STRINGS = {
         "biz_name_lbl": "Jina la biashara",
         "biz_cat_lbl": "Aina ya biashara",
         "add_biz_btn": "＋ Ongeza biashara",
-        "biz_caption": "Kila biashara ina stoo, mauzo, na rekodi zake za matumizi kipekee katika SQLite.",
+        "biz_caption": "Kila biashara ina stoo, mauzo, na rekodi zake za matumizi kipekee katika Supabase.",
         "prod_title": "Bidhaa na stoo",
         "prod_sub": "Fuatilia bidhaa zinazouzwa na {biz}.",
         "tab_prod_list": "📦 Orodha ya bidhaa",
@@ -239,8 +240,48 @@ def t(key, lang="en", **kwargs):
     return text.format(**kwargs) if kwargs else text
 
 
-# ---------- Initialize SQLite Database ----------
-setup_biashara.create_biashara_database()
+def require_signed_in_owner():
+    required_settings = {
+        "redirect_uri",
+        "cookie_secret",
+        "client_id",
+        "client_secret",
+        "server_metadata_url",
+    }
+    try:
+        auth_settings = st.secrets["auth"]
+    except (KeyError, StreamlitSecretNotFoundError):
+        auth_settings = None
+
+    if not auth_settings or any(
+        not str(auth_settings.get(key, "")).strip() for key in required_settings
+    ):
+        st.error(
+            "Google sign-in is not configured. Add the [auth] settings from "
+            ".streamlit/secrets.toml.example to Streamlit Cloud Secrets."
+        )
+        st.stop()
+
+    if not st.user.is_logged_in:
+        st.title("Biashara Manager")
+        st.write("Sign in with Google to access your business records.")
+        st.button("Continue with Google", on_click=st.login, type="primary")
+        st.stop()
+
+    owner_email = str(st.user.get("email", "")).strip().lower()
+    if not owner_email or not st.user.get("email_verified", False):
+        st.error("Sign in with a Google account that has a verified email address.")
+        st.stop()
+    return owner_email
+
+
+owner_email = require_signed_in_owner()
+try:
+    setup_biashara.create_biashara_database()
+except RuntimeError as error:
+    st.error(str(error))
+    st.stop()
+
 if "custom_attributes" not in st.session_state:
     st.session_state.custom_attributes = {}
 
@@ -249,15 +290,22 @@ def get_conn():
     return operations.get_db_connection()
 
 
-def is_duplicate_reference(payment_ref: str) -> bool:
+def is_duplicate_reference(payment_ref: str, owner_email: str) -> bool:
     if not payment_ref:
         return False
     conn = get_conn()
     try:
         cur = conn.cursor()
         cur.execute(
-            "SELECT 1 FROM sales WHERE UPPER(TRIM(payment_reference)) = ? LIMIT 1",
-            (payment_ref.strip().upper(),),
+            """
+            SELECT 1
+            FROM sales s
+            JOIN businesses b ON b.business_id = s.business_id
+            WHERE b.owner_email = %s
+              AND UPPER(TRIM(s.payment_reference)) = %s
+            LIMIT 1
+            """,
+            (owner_email, payment_ref.strip().upper()),
         )
         return cur.fetchone() is not None
     finally:
@@ -269,30 +317,42 @@ def money(value):
 
 
 # ---------- Database Helper Queries ----------
-def get_all_businesses():
+def get_all_businesses(owner_email):
     conn = get_conn()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT business_id, business_name, business_type FROM businesses ORDER BY business_id ASC")
+        cur.execute(
+            """
+            SELECT business_id, business_name, business_type
+            FROM businesses
+            WHERE owner_email = %s
+            ORDER BY business_id ASC
+            """,
+            (owner_email,),
+        )
         return [dict(row) for row in cur.fetchall()]
     finally:
         conn.close()
 
 
-def get_business_products(bid):
+def get_business_products(bid, owner_email):
     conn = get_conn()
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT product_id, product_name, buying_price, selling_price, stock_quantity, reorder_level
-            FROM products WHERE business_id = ? ORDER BY product_name ASC
-        """, (bid,))
+            SELECT p.product_id, p.product_name, p.buying_price, p.selling_price,
+                   p.stock_quantity, p.reorder_level
+            FROM products p
+            JOIN businesses b ON b.business_id = p.business_id
+            WHERE p.business_id = %s AND b.owner_email = %s
+            ORDER BY p.product_name ASC
+        """, (bid, owner_email))
         return [dict(row) for row in cur.fetchall()]
     finally:
         conn.close()
 
 
-def get_business_sales(bid, day_str=None):
+def get_business_sales(bid, owner_email, day_str=None):
     conn = get_conn()
     try:
         cur = conn.cursor()
@@ -301,45 +361,61 @@ def get_business_sales(bid, day_str=None):
                 SELECT sale_id, sale_day, sale_date, product_name, quantity,
                        unit_price, buying_price, total, estimated_profit,
                        payment_method, payment_reference
-                FROM daily_sales_view
-                WHERE business_id = ? AND sale_day = ?
+                FROM daily_sales_view v
+                JOIN businesses b ON b.business_id = v.business_id
+                WHERE v.business_id = %s AND b.owner_email = %s AND v.sale_day = %s
                 ORDER BY sale_date DESC
-            """, (bid, day_str))
+            """, (bid, owner_email, date.fromisoformat(day_str)))
         else:
             cur.execute("""
                 SELECT sale_id, sale_day, sale_date, product_name, quantity,
                        unit_price, buying_price, total, estimated_profit,
                        payment_method, payment_reference
-                FROM daily_sales_view
-                WHERE business_id = ?
+                FROM daily_sales_view v
+                JOIN businesses b ON b.business_id = v.business_id
+                WHERE v.business_id = %s AND b.owner_email = %s
                 ORDER BY sale_date DESC
-            """, (bid,))
-        return [dict(row) for row in cur.fetchall()]
+            """, (bid, owner_email))
+        rows = [dict(row) for row in cur.fetchall()]
+        for row in rows:
+            row["sale_day"] = row["sale_day"].isoformat()
+        return rows
     finally:
         conn.close()
 
 
-def get_business_expenses(bid):
+def get_business_expenses(bid, owner_email):
     conn = get_conn()
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT expense_id, DATE(expense_date) AS expense_day, expense_date,
-                   category, amount, description
-            FROM expenses
-            WHERE business_id = ?
-            ORDER BY expense_date DESC
-        """, (bid,))
-        return [dict(row) for row in cur.fetchall()]
+            SELECT e.expense_id, e.expense_date::date AS expense_day,
+                   e.expense_date, e.category, e.amount, e.description
+            FROM expenses e
+            JOIN businesses b ON b.business_id = e.business_id
+            WHERE e.business_id = %s AND b.owner_email = %s
+            ORDER BY e.expense_date DESC
+        """, (bid, owner_email))
+        rows = [dict(row) for row in cur.fetchall()]
+        for row in rows:
+            row["expense_day"] = row["expense_day"].isoformat()
+        return rows
     finally:
         conn.close()
 
 
-def get_business_summary(bid):
+def get_business_summary(bid, owner_email):
     conn = get_conn()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT * FROM daily_business_summary WHERE business_id = ?", (bid,))
+        cur.execute(
+            """
+            SELECT *
+            FROM daily_business_summary
+            WHERE business_id = %s AND owner_email = %s
+            """,
+            (bid, owner_email),
+        )
         row = cur.fetchone()
         return dict(row) if row else None
     finally:
@@ -347,7 +423,7 @@ def get_business_summary(bid):
 
 
 # ---------- Sidebar ----------
-businesses = get_all_businesses()
+businesses = get_all_businesses(owner_email)
 with st.sidebar:
     logo_col, title_col = st.columns([1, 4])
     with logo_col:
@@ -391,6 +467,14 @@ with st.sidebar:
     st.divider()
     st.caption(t("sidebar_footer_1", lang))
     st.caption(t("sidebar_footer_2", lang))
+    st.download_button(
+        "Download my data backup",
+        data=operations.get_owner_backup(owner_email),
+        file_name=f"biashara-backup-{date.today().isoformat()}.json",
+        mime="application/json",
+        use_container_width=True,
+    )
+    st.button("Sign out", on_click=st.logout, use_container_width=True)
 
 if not biz and page != "Businesses":
     st.warning(t("warn_no_biz", lang))
@@ -415,9 +499,9 @@ def page_header(title, subtitle):
 if page == "Overview":
     page_header(t("overview_title", lang), t("overview_sub", lang, biz=biz["business_name"]))
     today_str = date.today().isoformat()
-    all_sales = get_business_sales(biz["business_id"])
-    all_expenses = get_business_expenses(biz["business_id"])
-    products = get_business_products(biz["business_id"])
+    all_sales = get_business_sales(biz["business_id"], owner_email)
+    all_expenses = get_business_expenses(biz["business_id"], owner_email)
+    products = get_business_products(biz["business_id"], owner_email)
     todays_sales = [s for s in all_sales if s["sale_day"] == today_str]
     todays_expenses = [e for e in all_expenses if e["expense_day"] == today_str]
     low_stock = [p for p in products if p["stock_quantity"] <= p["reorder_level"]]
@@ -489,7 +573,11 @@ elif page == "Businesses":
                 if not name.strip():
                     st.error("Please enter a business name." if lang == "en" else "Tafadhali weka jina la biashara.")
                 else:
-                    new_id = operations.register_business(business_name=name.strip(), business_type=kind)
+                    new_id = operations.register_business(
+                        business_name=name.strip(),
+                        business_type=kind,
+                        owner_email=owner_email,
+                    )
                     st.session_state.active_business = name.strip()
                     st.success(f"{name.strip()} has been added (ID: {new_id})." if lang == "en" else f"{name.strip()} imeongezwa (ID: {new_id}).")
                     st.rerun()
@@ -500,7 +588,7 @@ elif page == "Businesses":
 # ============================================================
 elif page == "Products":
     page_header(t("prod_title", lang), t("prod_sub", lang, biz=biz["business_name"]))
-    products = get_business_products(biz["business_id"])
+    products = get_business_products(biz["business_id"], owner_email)
     tab1, tab2, tab3 = st.tabs([t("tab_prod_list", lang), t("tab_add_prod", lang), t("tab_custom_attr", lang)])
     with tab1:
         if products:
@@ -546,6 +634,7 @@ elif page == "Products":
                         buying_price=buy,
                         selling_price=sell,
                         stock_quantity=qty,
+                        owner_email=owner_email,
                         reorder_level=reorder,
                         custom_fields=extras if extras else None
                     )
@@ -577,7 +666,7 @@ elif page == "Products":
 # ============================================================
 elif page == "Sales":
     page_header(t("sales_title", lang), t("sales_sub", lang))
-    products = get_business_products(biz["business_id"])
+    products = get_business_products(biz["business_id"], owner_email)
     left, right = st.columns([1, 1.15], gap="large")
     with left:
         st.markdown(f"### {t('new_sale_entry', lang)}")
@@ -623,7 +712,7 @@ elif page == "Sales":
                         st.error(f"Insufficient stock. Only {chosen_product['stock_quantity']:g} units available." if lang == "en" else f"Stoo haitoshi. Zimebaki {chosen_product['stock_quantity']:g} pekee.")
                     elif payment_method in ["M-Pesa", "Visa / Card", "Bank Transfer"] and not clean_ref:
                         st.error(f"Please provide a transaction reference code for {payment_method}." if lang == "en" else f"Tafadhali weka nambari ya muamala kwa {payment_method}.")
-                    elif clean_ref and is_duplicate_reference(clean_ref):
+                    elif clean_ref and is_duplicate_reference(clean_ref, owner_email):
                         st.warning(f"Duplicate payment reference '{clean_ref}' already exists." if lang == "en" else f"Nambari ya muamala '{clean_ref}' tayari imetumika.")
                     else:
                         sale_items = [{
@@ -634,6 +723,7 @@ elif page == "Sales":
                         sale_id = operations.record_sale_secure(
                             business_id=biz["business_id"],
                             sale_items_list=sale_items,
+                            owner_email=owner_email,
                             payment_method=payment_method,
                             payment_reference=clean_ref or None,
                             lang=lang
@@ -645,7 +735,7 @@ elif page == "Sales":
                             st.error("Could not record sale. Please verify stock levels." if lang == "en" else "Imeshindikana kurekodi mauzo. Hakikisha stoo ipo.")
     with right:
         st.markdown(f"### {t('recent_sales', lang)}")
-        sales = get_business_sales(biz["business_id"])
+        sales = get_business_sales(biz["business_id"], owner_email)
         if sales:
             df_sales = pd.DataFrame(sales)[[
                 "sale_day", "product_name", "quantity", "unit_price", "total", "payment_method", "payment_reference"
@@ -688,12 +778,13 @@ elif page == "Expenses":
                         business_id=biz["business_id"],
                         category=category,
                         amount=amount,
-                        description=description.strip()
+                        description=description.strip(),
+                        owner_email=owner_email,
                     )
                     st.success("Expense saved." if lang == "en" else "Matumizi yamehifadhiwa.")
                     st.rerun()
     with right:
-        expenses = get_business_expenses(biz["business_id"])
+        expenses = get_business_expenses(biz["business_id"], owner_email)
         st.markdown(f"### {t('exp_history', lang)}")
         if expenses:
             st.metric(t("total_rec_exp", lang), money(sum(e["amount"] for e in expenses)))
@@ -714,7 +805,7 @@ elif page == "Expenses":
 # ============================================================
 elif page == "Restocks":
     page_header(t("restock_title", lang), t("restock_sub", lang))
-    products = get_business_products(biz["business_id"])
+    products = get_business_products(biz["business_id"], owner_email)
     if not products:
         st.info("Add products under **📦 Products & stock** before recording restocks." if lang == "en" else "Ongeza bidhaa chini ya **📦 Bidhaa na stoo** kwanza.")
     else:
@@ -742,6 +833,7 @@ elif page == "Restocks":
                         "unit_buying_price": buy_cost
                     }],
                     notes=notes.strip(),
+                    owner_email=owner_email,
                     lang=lang
                 )
                 st.success(f"Added {qty_added:g} units of {chosen_name} to stock." if lang == "en" else f"Zimeongezwa {qty_added:g} za {chosen_name} kwenye stoo.")
@@ -754,8 +846,8 @@ elif page == "Daily records":
     page_header(t("daily_title", lang), t("daily_sub", lang))
     chosen_date = st.date_input(t("choose_date", lang), value=date.today())
     ds = chosen_date.isoformat()
-    sales = get_business_sales(biz["business_id"], day_str=ds)
-    expenses = [e for e in get_business_expenses(biz["business_id"]) if e["expense_day"] == ds]
+    sales = get_business_sales(biz["business_id"], owner_email, day_str=ds)
+    expenses = [e for e in get_business_expenses(biz["business_id"], owner_email) if e["expense_day"] == ds]
     sales_sum = sum(s["total"] for s in sales)
     exp_sum = sum(e["amount"] for e in expenses)
     a, b, c = st.columns(3)
@@ -787,9 +879,9 @@ elif page == "Daily records":
 # ============================================================
 elif page == "Reports":
     page_header(t("reports_title", lang), t("reports_sub", lang, biz=biz["business_name"]))
-    summary = get_business_summary(biz["business_id"])
-    sales = get_business_sales(biz["business_id"])
-    expenses = get_business_expenses(biz["business_id"])
+    summary = get_business_summary(biz["business_id"], owner_email)
+    sales = get_business_sales(biz["business_id"], owner_email)
+    expenses = get_business_expenses(biz["business_id"], owner_email)
     total_sales = summary.get("total_revenue", 0.0) if summary else sum(s["total"] for s in sales)
     total_expenses = summary.get("total_expenses", 0.0) if summary else sum(e["amount"] for e in expenses)
     total_restocks = summary.get("total_restock_cost", 0.0) if summary else 0.0

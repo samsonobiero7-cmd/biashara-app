@@ -1,163 +1,137 @@
-import sqlite3
-
-DB_NAME = "biashara_manager.db"
-
-
-def get_connection():
-    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
+from database import get_db_connection
 
 
 def create_biashara_database():
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    # 1. Businesses Table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS businesses (
-            business_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            business_name TEXT NOT NULL,
-            business_type TEXT NOT NULL
-        )
-    """)
-
-    # 2. Products Table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS products (
-            product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            business_id INTEGER,
-            product_name TEXT NOT NULL,
-            buying_price REAL DEFAULT 0.0,
-            selling_price REAL DEFAULT 0.0,
-            stock_quantity REAL DEFAULT 0.0,
-            reorder_level REAL DEFAULT 5.0,
-            FOREIGN KEY (business_id) REFERENCES businesses(business_id)
-        )
-    """)
-
-    # 3. Sales Table (with payment method & reference codes)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS sales (
-            sale_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            business_id INTEGER,
-            sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            total_amount REAL DEFAULT 0.0,
-            payment_method TEXT DEFAULT 'Cash',
-            payment_reference TEXT,
-            FOREIGN KEY (business_id) REFERENCES businesses(business_id)
-        )
-    """)
-
-    # Safely migrate/add columns if upgrading an older database version
-    cursor.execute("PRAGMA table_info(sales)")
-    sales_cols = [col[1] for col in cursor.fetchall()]
-
-    if "payment_method" not in sales_cols:
-        cursor.execute("ALTER TABLE sales ADD COLUMN payment_method TEXT DEFAULT 'Cash'")
-
-    if "payment_reference" not in sales_cols:
-        cursor.execute("ALTER TABLE sales ADD COLUMN payment_reference TEXT")
-
-    # Prevent duplicate non-null/non-empty payment references
-    cursor.execute("""
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_unique_payment_ref
-        ON sales(payment_reference)
-        WHERE payment_reference IS NOT NULL AND TRIM(payment_reference) != ''
-    """)
-
-    # 4. Sale Items Table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS sale_items (
-            sale_item_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sale_id INTEGER,
-            product_id INTEGER,
-            quantity REAL NOT NULL,
-            unit_price REAL NOT NULL,
-            FOREIGN KEY (sale_id) REFERENCES sales(sale_id),
-            FOREIGN KEY (product_id) REFERENCES products(product_id)
-        )
-    """)
-
-    # 5. Expenses Table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS expenses (
-            expense_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            business_id INTEGER,
-            expense_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            category TEXT NOT NULL,
-            amount REAL NOT NULL,
-            description TEXT,
-            FOREIGN KEY (business_id) REFERENCES businesses(business_id)
-        )
-    """)
-
-    # 6. Purchases / Restocks Table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS purchases (
-            purchase_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            business_id INTEGER,
-            purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            supplier_name TEXT,
-            total_cost REAL DEFAULT 0.0,
-            notes TEXT,
-            FOREIGN KEY (business_id) REFERENCES businesses(business_id)
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS purchase_items (
-            purchase_item_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            purchase_id INTEGER,
-            product_id INTEGER,
-            quantity_added REAL NOT NULL,
-            unit_buying_price REAL NOT NULL,
-            FOREIGN KEY (purchase_id) REFERENCES purchases(purchase_id),
-            FOREIGN KEY (product_id) REFERENCES products(product_id)
-        )
-    """)
-
-    # 7. Daily Sales View (queryable by sale_day and business_id)
-    cursor.execute("DROP VIEW IF EXISTS daily_sales_view")
-    cursor.execute("""
-        CREATE VIEW IF NOT EXISTS daily_sales_view AS
-        SELECT
-            s.sale_id,
-            s.business_id,
-            DATE(s.sale_date) AS sale_day,
-            s.sale_date,
-            p.product_name,
-            si.quantity,
-            si.unit_price,
-            p.buying_price,
-            (si.quantity * si.unit_price) AS total,
-            (si.quantity * (si.unit_price - COALESCE(p.buying_price, 0))) AS estimated_profit,
-            s.payment_method,
-            s.payment_reference
-        FROM sales s
-        JOIN sale_items si ON s.sale_id = si.sale_id
-        JOIN products p ON si.product_id = p.product_id
-    """)
-
-    # 8. Financial & Daily Summary View
-    cursor.execute("""
-        CREATE VIEW IF NOT EXISTS daily_business_summary AS
-        SELECT
-            b.business_id,
-            b.business_name,
-            COUNT(DISTINCT s.sale_id) AS total_transactions,
-            SUM(s.total_amount) AS total_revenue,
-            (SELECT SUM(amount) FROM expenses e WHERE e.business_id = b.business_id) AS total_expenses,
-            (SELECT SUM(total_cost) FROM purchases pr WHERE pr.business_id = b.business_id) AS total_restock_cost
-        FROM businesses b
-        LEFT JOIN sales s ON b.business_id = s.business_id
-        GROUP BY b.business_id, b.business_name
-    """)
-
-    conn.commit()
-    conn.close()
-
-
-if __name__ == "__main__":
-    create_biashara_database()
-    print(f"Database '{DB_NAME}' schema created/updated successfully.")
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS businesses (
+                    business_id BIGSERIAL PRIMARY KEY,
+                    owner_email TEXT NOT NULL,
+                    business_name TEXT NOT NULL,
+                    business_type TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS products (
+                    product_id BIGSERIAL PRIMARY KEY,
+                    business_id BIGINT NOT NULL REFERENCES businesses(business_id),
+                    product_name TEXT NOT NULL,
+                    buying_price DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    selling_price DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    stock_quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    reorder_level DOUBLE PRECISION NOT NULL DEFAULT 5
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS sales (
+                    sale_id BIGSERIAL PRIMARY KEY,
+                    business_id BIGINT NOT NULL REFERENCES businesses(business_id),
+                    sale_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    total_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    payment_method TEXT NOT NULL DEFAULT 'Cash',
+                    payment_reference TEXT
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS sale_items (
+                    sale_item_id BIGSERIAL PRIMARY KEY,
+                    sale_id BIGINT NOT NULL REFERENCES sales(sale_id),
+                    product_id BIGINT NOT NULL REFERENCES products(product_id),
+                    quantity DOUBLE PRECISION NOT NULL,
+                    unit_price DOUBLE PRECISION NOT NULL
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS expenses (
+                    expense_id BIGSERIAL PRIMARY KEY,
+                    business_id BIGINT NOT NULL REFERENCES businesses(business_id),
+                    expense_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    category TEXT NOT NULL,
+                    amount DOUBLE PRECISION NOT NULL,
+                    description TEXT
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS purchases (
+                    purchase_id BIGSERIAL PRIMARY KEY,
+                    business_id BIGINT NOT NULL REFERENCES businesses(business_id),
+                    purchase_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    total_cost DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    notes TEXT
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS purchase_items (
+                    purchase_item_id BIGSERIAL PRIMARY KEY,
+                    purchase_id BIGINT NOT NULL REFERENCES purchases(purchase_id),
+                    product_id BIGINT NOT NULL REFERENCES products(product_id),
+                    quantity_added DOUBLE PRECISION NOT NULL,
+                    unit_buying_price DOUBLE PRECISION NOT NULL
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS business_fields (
+                    field_id BIGSERIAL PRIMARY KEY,
+                    business_id BIGINT NOT NULL REFERENCES businesses(business_id),
+                    field_name TEXT NOT NULL,
+                    UNIQUE (business_id, field_name)
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS product_field_values (
+                    product_id BIGINT NOT NULL REFERENCES products(product_id),
+                    field_id BIGINT NOT NULL REFERENCES business_fields(field_id),
+                    field_value TEXT NOT NULL,
+                    PRIMARY KEY (product_id, field_id)
+                )
+            """)
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_unique_payment_ref
+                ON sales (business_id, payment_reference)
+                WHERE payment_reference IS NOT NULL AND BTRIM(payment_reference) <> ''
+            """)
+            cursor.execute("""
+                CREATE OR REPLACE VIEW daily_sales_view AS
+                SELECT
+                    s.sale_id,
+                    s.business_id,
+                    s.sale_date::date AS sale_day,
+                    s.sale_date,
+                    p.product_name,
+                    si.quantity,
+                    si.unit_price,
+                    p.buying_price,
+                    si.quantity * si.unit_price AS total,
+                    si.quantity * (si.unit_price - COALESCE(p.buying_price, 0))
+                        AS estimated_profit,
+                    s.payment_method,
+                    s.payment_reference
+                FROM sales s
+                JOIN sale_items si ON s.sale_id = si.sale_id
+                JOIN products p ON si.product_id = p.product_id
+            """)
+            cursor.execute("""
+                CREATE OR REPLACE VIEW daily_business_summary AS
+                SELECT
+                    b.business_id,
+                    b.owner_email,
+                    b.business_name,
+                    COUNT(DISTINCT s.sale_id) AS total_transactions,
+                    SUM(s.total_amount) AS total_revenue,
+                    (SELECT SUM(e.amount) FROM expenses e
+                     WHERE e.business_id = b.business_id) AS total_expenses,
+                    (SELECT SUM(p.total_cost) FROM purchases p
+                     WHERE p.business_id = b.business_id) AS total_restock_cost
+                FROM businesses b
+                LEFT JOIN sales s ON s.business_id = b.business_id
+                GROUP BY b.business_id, b.owner_email, b.business_name
+            """)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()

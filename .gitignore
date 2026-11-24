@@ -1,0 +1,4 @@
+biashara_manager.db
+biashara_manager.db-*
+.streamlit/secrets.toml
+__pycache__/

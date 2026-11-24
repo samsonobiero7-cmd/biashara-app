@@ -1,252 +1,391 @@
-import sqlite3
-from translations import get_text
-DB_NAME = "biashara_manager.db"
+import json
+from datetime import datetime, timezone
 
-def get_db_connection():
-    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA foreign_keys = ON;")
-    conn.commit()
-    return conn
+from database import get_db_connection
 
-# --- 1. BUSINESS REGISTRATION & CUSTOM FIELDS ---
-def register_business(business_name, business_type=None, lang="en"):
-    """Dynamically registers any shop on the fly."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
+
+def _normalized_email(owner_email):
+    normalized = (owner_email or "").strip().lower()
+    if not normalized:
+        raise ValueError("A signed-in owner email is required.")
+    return normalized
+
+
+def _assert_business_owner(cursor, business_id, owner_email):
     cursor.execute(
         """
-        INSERT INTO businesses (business_name, business_type)
-        VALUES (?, ?)
-    """,
-        (business_name, business_type),
-    )
-    business_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    print(
-        get_text("biz_registered", lang=lang, name=business_name, id=business_id)
-    )
-    return business_id
-
-def register_business_fields(business_id, field_names, lang="en"):
-    """Allows a business owner to define custom columns/attributes for their specific shop."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    for name in field_names:
-        cursor.execute(
-            """
-            INSERT INTO business_fields (business_id, field_name)
-            VALUES (?, ?)
+        SELECT 1
+        FROM businesses
+        WHERE business_id = %s AND owner_email = %s
         """,
-            (business_id, name.strip()),
-        )
-    conn.commit()
-    conn.close()
-    print(f"Registered {len(field_names)} custom fields for business ID {business_id}.")
+        (business_id, owner_email),
+    )
+    if cursor.fetchone() is None:
+        raise PermissionError("Business not found or access denied.")
 
-# --- 2. INVENTORY & CUSTOM ATTRIBUTES ---
+
+def register_business(business_name, business_type, owner_email, lang="en"):
+    owner_email = _normalized_email(owner_email)
+    conn = get_db_connection()
+    try:
+        with conn.transaction():
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO businesses (owner_email, business_name, business_type)
+                    VALUES (%s, %s, %s)
+                    RETURNING business_id
+                    """,
+                    (owner_email, business_name.strip(), business_type),
+                )
+                business_id = cursor.fetchone()["business_id"]
+        return business_id
+    finally:
+        conn.close()
+
+
+def register_business_fields(business_id, field_names, owner_email):
+    owner_email = _normalized_email(owner_email)
+    conn = get_db_connection()
+    try:
+        with conn.transaction():
+            with conn.cursor() as cursor:
+                _assert_business_owner(cursor, business_id, owner_email)
+                for name in field_names:
+                    field_name = name.strip()
+                    if field_name:
+                        cursor.execute(
+                            """
+                            INSERT INTO business_fields (business_id, field_name)
+                            VALUES (%s, %s)
+                            ON CONFLICT (business_id, field_name)
+                            DO NOTHING
+                            """,
+                            (business_id, field_name),
+                        )
+    finally:
+        conn.close()
+
+
 def add_product_with_custom_fields(
     business_id,
     product_name,
     buying_price,
     selling_price,
     stock_quantity,
+    owner_email,
     supplier_id=None,
     reorder_level=5.0,
     custom_fields=None,
 ):
-    """Adds a universal product, saves custom EAV fields, and checks initial stock levels."""
+    owner_email = _normalized_email(owner_email)
     conn = get_db_connection()
-    cursor = conn.cursor()
-    # Insert core product
-    cursor.execute(
-        """
-        INSERT INTO products (business_id, supplier_id, product_name, buying_price, selling_price, stock_quantity, reorder_level)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """,
-        (
-            business_id,
-            supplier_id,
-            product_name,
-            buying_price,
-            selling_price,
-            stock_quantity,
-            reorder_level,
-        ),
-    )
-    product_id = cursor.lastrowid
-    # Insert custom fields
-    if custom_fields:
-        for field_id, value in custom_fields.items():
-            cursor.execute(
-                """
-                INSERT INTO product_field_values (product_id, field_id, field_value)
-                VALUES (?, ?, ?)
-            """,
-                (product_id, field_id, str(value)),
-            )
-    conn.commit()
-    conn.close()
-    print(f"Product '{product_name}' added successfully with ID {product_id}.")
-    # Immediate stock check notification upon creation
-    if stock_quantity <= reorder_level:
-        print(
-            f"⚠️ **NOTIFICATION**: Low stock alert for '{product_name}'! Current"
-            f" stock ({stock_quantity}) is at or below reorder level"
-            f" ({reorder_level})."
-        )
-    return product_id
+    try:
+        with conn.transaction():
+            with conn.cursor() as cursor:
+                _assert_business_owner(cursor, business_id, owner_email)
+                cursor.execute(
+                    """
+                    INSERT INTO products (
+                        business_id, product_name, buying_price, selling_price,
+                        stock_quantity, reorder_level
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING product_id
+                    """,
+                    (
+                        business_id,
+                        product_name.strip(),
+                        buying_price,
+                        selling_price,
+                        stock_quantity,
+                        reorder_level,
+                    ),
+                )
+                product_id = cursor.fetchone()["product_id"]
 
-def view_inventory_levels(business_id):
-    """Displays current stock levels and reorder thresholds for a business."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT product_id, product_name, stock_quantity, reorder_level, selling_price
-        FROM products
-        WHERE business_id = ?
-    """,
-        (business_id,),
-    )
-    items = cursor.fetchall()
-    conn.close()
-    if not items:
-        print("No products found in inventory.")
-        return
-    print(f"\n📋 === INVENTORY & REORDER LEVELS (Shop ID: {business_id}) ===")
-    for item in items:
-        status = (
-            "⚠️ LOW" if item["stock_quantity"] <= item["reorder_level"] else "✅ OK"
-        )
-        print(
-            f"ID: {item['product_id']} | {item['product_name']:<15} | Stock:"
-            f" {item['stock_quantity']:<6} | Reorder At:"
-            f" {item['reorder_level']:<6} | Status: {status}"
-        )
-    print("-" * 65)
+                for field_name, value in (custom_fields or {}).items():
+                    field_name = field_name.strip()
+                    if not field_name:
+                        continue
+                    cursor.execute(
+                        """
+                        INSERT INTO business_fields (business_id, field_name)
+                        VALUES (%s, %s)
+                        ON CONFLICT (business_id, field_name)
+                        DO UPDATE SET field_name = EXCLUDED.field_name
+                        RETURNING field_id
+                        """,
+                        (business_id, field_name),
+                    )
+                    field_id = cursor.fetchone()["field_id"]
+                    cursor.execute(
+                        """
+                        INSERT INTO product_field_values (product_id, field_id, field_value)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (product_id, field_id)
+                        DO UPDATE SET field_value = EXCLUDED.field_value
+                        """,
+                        (product_id, field_id, str(value)),
+                    )
+        return product_id
+    finally:
+        conn.close()
 
-def update_reorder_level(product_id, new_reorder_level):
-    """Updates the low-stock threshold for an existing product."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        UPDATE products
-        SET reorder_level = ?
-        WHERE product_id = ?
-    """,
-        (new_reorder_level, product_id),
-    )
-    conn.commit()
-    conn.close()
-    print(
-        f"✅ Updated Product ID {product_id} reorder level to"
-        f" {new_reorder_level}."
-    )
 
-# --- 3. IN-APP POPUP NOTIFICATIONS & DASHBOARD ALERTS ---
-def run_biashara_alerts(business_id=None, lang="en"):
-    """Fires clean in-app notification popups for low stock warnings."""
+def record_sale_secure(
+    business_id,
+    sale_items_list,
+    owner_email,
+    payment_method="Cash",
+    payment_reference=None,
+    lang="en",
+):
+    owner_email = _normalized_email(owner_email)
+    if not sale_items_list:
+        raise ValueError("A sale must contain at least one item.")
+    if any(float(item["quantity"]) <= 0 for item in sale_items_list):
+        raise ValueError("Sale quantities must be greater than zero.")
+
     conn = get_db_connection()
-    cursor = conn.cursor()
-    print("\n" + "=" * 50)
-    print("🔔 📱 [BIASHARA IN-APP NOTIFICATION CENTER]")
-    print("=" * 50)
-    # --- LOW STOCK WARNINGS ---
-    if business_id:
-        cursor.execute(
-            """
-            SELECT p.product_name, p.stock_quantity, p.reorder_level, b.business_name
-            FROM products p
-            JOIN businesses b ON p.business_id = b.business_id
-            WHERE p.business_id = ? AND p.stock_quantity <= p.reorder_level
+    try:
+        with conn.transaction():
+            with conn.cursor() as cursor:
+                _assert_business_owner(cursor, business_id, owner_email)
+                quantities_by_product = {}
+                for item in sale_items_list:
+                    product_id = item["product_id"]
+                    quantities_by_product[product_id] = (
+                        quantities_by_product.get(product_id, 0)
+                        + float(item["quantity"])
+                    )
+
+                for product_id, quantity in quantities_by_product.items():
+                    cursor.execute(
+                        """
+                        SELECT stock_quantity
+                        FROM products
+                        WHERE product_id = %s AND business_id = %s
+                        FOR UPDATE
+                        """,
+                        (product_id, business_id),
+                    )
+                    product = cursor.fetchone()
+                    if product is None or quantity > product["stock_quantity"]:
+                        return None
+
+                total_amount = sum(
+                    float(item["quantity"]) * float(item["unit_price"])
+                    for item in sale_items_list
+                )
+                clean_reference = (
+                    payment_reference.strip().upper() if payment_reference else None
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO sales (
+                        business_id, total_amount, payment_method, payment_reference
+                    )
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING sale_id
+                    """,
+                    (business_id, total_amount, payment_method, clean_reference),
+                )
+                sale_id = cursor.fetchone()["sale_id"]
+
+                for item in sale_items_list:
+                    quantity = float(item["quantity"])
+                    cursor.execute(
+                        """
+                        INSERT INTO sale_items (sale_id, product_id, quantity, unit_price)
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (sale_id, item["product_id"], quantity, item["unit_price"]),
+                    )
+                    cursor.execute(
+                        """
+                        UPDATE products
+                        SET stock_quantity = stock_quantity - %s
+                        WHERE product_id = %s AND business_id = %s
+                        """,
+                        (quantity, item["product_id"], business_id),
+                    )
+        return sale_id
+    finally:
+        conn.close()
+
+
+def record_expense(business_id, category, amount, description, owner_email):
+    owner_email = _normalized_email(owner_email)
+    if float(amount) <= 0:
+        raise ValueError("Expense amount must be greater than zero.")
+    conn = get_db_connection()
+    try:
+        with conn.transaction():
+            with conn.cursor() as cursor:
+                _assert_business_owner(cursor, business_id, owner_email)
+                cursor.execute(
+                    """
+                    INSERT INTO expenses (business_id, category, amount, description)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING expense_id
+                    """,
+                    (business_id, category, amount, description),
+                )
+                return cursor.fetchone()["expense_id"]
+    finally:
+        conn.close()
+
+
+def record_purchase(
+    business_id,
+    purchase_items_list,
+    owner_email,
+    supplier_id=None,
+    notes=None,
+    lang="en",
+):
+    owner_email = _normalized_email(owner_email)
+    if not purchase_items_list:
+        raise ValueError("A purchase must contain at least one item.")
+    if any(float(item["quantity_added"]) <= 0 for item in purchase_items_list):
+        raise ValueError("Restock quantities must be greater than zero.")
+
+    conn = get_db_connection()
+    try:
+        with conn.transaction():
+            with conn.cursor() as cursor:
+                _assert_business_owner(cursor, business_id, owner_email)
+                for item in purchase_items_list:
+                    cursor.execute(
+                        """
+                        SELECT 1 FROM products
+                        WHERE product_id = %s AND business_id = %s
+                        FOR UPDATE
+                        """,
+                        (item["product_id"], business_id),
+                    )
+                    if cursor.fetchone() is None:
+                        raise PermissionError("Product not found in this business.")
+
+                total_cost = sum(
+                    float(item["quantity_added"])
+                    * float(item["unit_buying_price"])
+                    for item in purchase_items_list
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO purchases (business_id, total_cost, notes)
+                    VALUES (%s, %s, %s)
+                    RETURNING purchase_id
+                    """,
+                    (business_id, total_cost, notes),
+                )
+                purchase_id = cursor.fetchone()["purchase_id"]
+
+                for item in purchase_items_list:
+                    quantity = float(item["quantity_added"])
+                    cursor.execute(
+                        """
+                        INSERT INTO purchase_items (
+                            purchase_id, product_id, quantity_added,
+                            unit_buying_price
+                        )
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (
+                            purchase_id,
+                            item["product_id"],
+                            quantity,
+                            item["unit_buying_price"],
+                        ),
+                    )
+                    cursor.execute(
+                        """
+                        UPDATE products
+                        SET stock_quantity = stock_quantity + %s,
+                            buying_price = %s
+                        WHERE product_id = %s AND business_id = %s
+                        """,
+                        (
+                            quantity,
+                            item["unit_buying_price"],
+                            item["product_id"],
+                            business_id,
+                        ),
+                    )
+        return purchase_id
+    finally:
+        conn.close()
+
+
+def get_owner_backup(owner_email):
+    owner_email = _normalized_email(owner_email)
+    table_queries = {
+        "businesses": """
+            SELECT business_id, owner_email, business_name, business_type, created_at
+            FROM businesses WHERE owner_email = %s ORDER BY business_id
         """,
-            (business_id,),
-        )
-    else:
-        cursor.execute("""
-            SELECT p.product_name, p.stock_quantity, p.reorder_level, b.business_name
-            FROM products p
-            JOIN businesses b ON p.business_id = b.business_id
-            WHERE p.stock_quantity <= p.reorder_level
-        """)
-    stock_alerts = cursor.fetchall()
-    print("\n📦 [Inventory Stock Alerts]")
-    if stock_alerts:
-        for alert in stock_alerts:
-            print(
-                f"  ⚠️ ALERT: '{alert['product_name']}' ({alert['business_name']})"
-                f" is running low! Left: {alert['stock_quantity']} (Threshold:"
-                f" {alert['reorder_level']})"
-            )
-    else:
-        print("  ✅ All stock levels are healthy. No inventory warnings.")
-    print("\n" + "=" * 50)
-    conn.close()
+        "products": """
+            SELECT p.* FROM products p
+            JOIN businesses b ON b.business_id = p.business_id
+            WHERE b.owner_email = %s ORDER BY p.product_id
+        """,
+        "sales": """
+            SELECT s.* FROM sales s
+            JOIN businesses b ON b.business_id = s.business_id
+            WHERE b.owner_email = %s ORDER BY s.sale_id
+        """,
+        "sale_items": """
+            SELECT si.* FROM sale_items si
+            JOIN sales s ON s.sale_id = si.sale_id
+            JOIN businesses b ON b.business_id = s.business_id
+            WHERE b.owner_email = %s ORDER BY si.sale_item_id
+        """,
+        "expenses": """
+            SELECT e.* FROM expenses e
+            JOIN businesses b ON b.business_id = e.business_id
+            WHERE b.owner_email = %s ORDER BY e.expense_id
+        """,
+        "purchases": """
+            SELECT p.* FROM purchases p
+            JOIN businesses b ON b.business_id = p.business_id
+            WHERE b.owner_email = %s ORDER BY p.purchase_id
+        """,
+        "purchase_items": """
+            SELECT pi.* FROM purchase_items pi
+            JOIN purchases p ON p.purchase_id = pi.purchase_id
+            JOIN businesses b ON b.business_id = p.business_id
+            WHERE b.owner_email = %s ORDER BY pi.purchase_item_id
+        """,
+        "business_fields": """
+            SELECT bf.* FROM business_fields bf
+            JOIN businesses b ON b.business_id = bf.business_id
+            WHERE b.owner_email = %s ORDER BY bf.field_id
+        """,
+        "product_field_values": """
+            SELECT pfv.* FROM product_field_values pfv
+            JOIN products p ON p.product_id = pfv.product_id
+            JOIN businesses b ON b.business_id = p.business_id
+            WHERE b.owner_email = %s ORDER BY pfv.product_id, pfv.field_id
+        """,
+    }
 
-# --- 4. TRANSACTIONS (SALES & EXPENSES) [UPDATED WITH PAYMENTS] ---
-def record_sale(business_id, sale_items_list, payment_method="Cash", payment_reference=None, lang="en"):
-    """Records a sale transaction, updates inventory stock levels, logs line items,
-    saves payment information, and triggers automatic low-stock alerts if thresholds are breached.
-    """
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Calculate total amount
-    total_amount = sum(
-        item["quantity"] * item["unit_price"] for item in sale_items_list
-    )
-
-    clean_ref = payment_reference.strip().upper() if payment_reference else None
-    
-    # Insert sale header with payment method and reference
-    cursor.execute(
-        """
-        INSERT INTO sales (business_id, total_amount, payment_method, payment_reference)
-        VALUES (?, ?, ?, ?)
-    """,
-        (business_id, total_amount, payment_method, clean_ref),
-    )
-    sale_id = cursor.lastrowid
-    
-    # Insert line items, deduct stock, and check restock levels
-    for item in sale_items_list:
-        cursor.execute(
-            """
-            INSERT INTO sale_items (sale_id, product_id, quantity, unit_price)
-            VALUES (?, ?, ?, ?)
-        """,
-            (sale_id, item["product_id"], item["quantity"], item["unit_price"]),
+    try:
+        with conn.cursor() as cursor:
+            backup = {}
+            for table, query in table_queries.items():
+                cursor.execute(query, (owner_email,))
+                backup[table] = cursor.fetchall()
+        backup_data = {
+            "format_version": 1,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "owner_email": owner_email,
+            "tables": backup,
+        }
+        return json.dumps(backup_data, default=str, ensure_ascii=False, indent=2).encode(
+            "utf-8"
         )
-        
-        # Automatically deduct stock quantity
-        cursor.execute(
-            """
-            UPDATE products 
-            SET stock_quantity = stock_quantity - ? 
-            WHERE product_id = ?
-        """,
-            (item["quantity"], item["product_id"]),
-        )
-        
-        # --- AUTOMATIC RESTOCK ALERT CHECK ---
-        cursor.execute(
-            """
-            SELECT product_name, stock_quantity, reorder_level 
-            FROM products WHERE product_id = ?
-        """,
-            (item["product_id"],),
-        )
-        prod = cursor.fetchone()
-        if prod and prod["stock_quantity"] <= prod["reorder_level"]:
-            print("\n" + "!" * 50)
-            print(f"🚨 **AUTOMATIC RESTOCK ALERT** 🚨")
-            print(
-                f"• Product: '{prod['product_name']}' is running critically low!"
-                f" Remaining Stock: {prod['stock_quantity']} (Reorder Level:"
-                f" {prod['reorder_level']})"
-            )
-            print("!" * 50 + "\n")
+    finally:
+        conn.close()
