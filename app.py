@@ -384,6 +384,8 @@ def get_business_products(bid, owner_email):
 def sync_offline_sales(business, products, lang):
     bid = int(business["business_id"])
     ack_ids = set(st.session_state.get("offline_ack_ids", []))
+    component_key = f"offline-sync-{bid}"
+    component_state = st.session_state.get(component_key, {})
     result = OFFLINE_SYNC_COMPONENT(
         data={
             "owner_email": owner_email,
@@ -391,10 +393,12 @@ def sync_offline_sales(business, products, lang):
             "business_name": business["business_name"],
             "products": products,
             "ack_ids": sorted(ack_ids),
+            "pending_signature": component_state.get("pending_signature"),
         },
         on_pending_sales_change=lambda: None,
+        on_pending_signature_change=lambda: None,
         on_bridge_error_change=lambda: None,
-        key=f"offline-sync-{bid}",
+        key=component_key,
     )
 
     notice = st.session_state.pop("offline_sync_notice", None)

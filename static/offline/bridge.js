@@ -2,7 +2,6 @@ const DATABASE_NAME = "biashara-offline";
 const DATABASE_VERSION = 1;
 const CATALOG_STORE = "catalogs";
 const SALES_STORE = "sales";
-const sentSignatures = new Map();
 
 function openDatabase() {
   return new Promise((resolve, reject) => {
@@ -43,8 +42,6 @@ export default function(component) {
   if (!data || !data.owner_email || !data.business_id) {
     return;
   }
-
-  const componentKey = `${data.owner_email}::${data.business_id}`;
 
   async function prepareCatalogAndSyncQueue() {
     const database = await openDatabase();
@@ -101,8 +98,8 @@ export default function(component) {
           a.client_sale_id.localeCompare(b.client_sale_id),
         ),
       );
-      if (sentSignatures.get(componentKey) !== signature) {
-        sentSignatures.set(componentKey, signature);
+      if (data.pending_signature !== signature) {
+        setStateValue("pending_signature", signature);
         setStateValue("pending_sales", remainingSales);
       }
       setStateValue("bridge_error", null);
