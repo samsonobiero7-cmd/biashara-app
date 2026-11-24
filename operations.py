@@ -135,6 +135,120 @@ def add_product_with_custom_fields(
         conn.close()
 
 
+def add_offline_product(
+    business_id,
+    product_name,
+    buying_price,
+    selling_price,
+    stock_quantity,
+    owner_email,
+    offline_product_id,
+    reorder_level=5.0,
+):
+    owner_email = _normalized_email(owner_email)
+    try:
+        offline_product_id = UUID(str(offline_product_id))
+        product_name = str(product_name or "").strip()
+        buying_price = float(buying_price)
+        selling_price = float(selling_price)
+        stock_quantity = float(stock_quantity)
+        reorder_level = float(reorder_level)
+    except (TypeError, ValueError, AttributeError) as error:
+        raise ValueError("Offline product details are invalid.") from error
+
+    if not product_name:
+        raise ValueError("Offline product name is required.")
+    if any(
+        not math.isfinite(value) or value < 0
+        for value in (buying_price, selling_price, stock_quantity, reorder_level)
+    ):
+        raise ValueError("Offline product values must be finite and zero or greater.")
+
+    conn = get_db_connection()
+    try:
+        with conn.transaction():
+            with conn.cursor() as cursor:
+                _assert_business_owner(cursor, business_id, owner_email)
+                cursor.execute(
+                    """
+                    SELECT product_id, business_id
+                    FROM products
+                    WHERE offline_product_id = %s
+                    """,
+                    (offline_product_id,),
+                )
+                existing_product = cursor.fetchone()
+                if existing_product is not None:
+                    if existing_product["business_id"] != business_id:
+                        raise PermissionError(
+                            "Offline product ID is already used by another business."
+                        )
+                    return existing_product["product_id"]
+
+                cursor.execute(
+                    """
+                    SELECT 1
+                    FROM products
+                    WHERE business_id = %s
+                      AND LOWER(BTRIM(product_name)) = LOWER(%s)
+                    LIMIT 1
+                    """,
+                    (business_id, product_name),
+                )
+                if cursor.fetchone() is not None:
+                    raise ValueError(
+                        "A product with this name already exists. Refresh the "
+                        "offline catalog and select the existing product."
+                    )
+
+                cursor.execute(
+                    """
+                    INSERT INTO products (
+                        business_id, product_name, buying_price, selling_price,
+                        stock_quantity, reorder_level, offline_product_id
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (offline_product_id)
+                        WHERE offline_product_id IS NOT NULL
+                    DO NOTHING
+                    RETURNING product_id
+                    """,
+                    (
+                        business_id,
+                        product_name,
+                        buying_price,
+                        selling_price,
+                        stock_quantity,
+                        reorder_level,
+                        offline_product_id,
+                    ),
+                )
+                inserted_product = cursor.fetchone()
+                if inserted_product is not None:
+                    return inserted_product["product_id"]
+
+                cursor.execute(
+                    """
+                    SELECT product_id, business_id
+                    FROM products
+                    WHERE offline_product_id = %s
+                    """,
+                    (offline_product_id,),
+                )
+                existing_product = cursor.fetchone()
+                if existing_product is None:
+                    raise RuntimeError(
+                        "Offline product could not be found after a duplicate insert."
+                    )
+                if existing_product["business_id"] != business_id:
+                    raise PermissionError(
+                        "Offline product ID is already used by another business."
+                    )
+                return existing_product["product_id"]
+    finally:
+        conn.close()
+
+
 def record_sale_secure(
     business_id,
     sale_items_list,

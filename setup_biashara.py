@@ -22,8 +22,18 @@ def create_biashara_database():
                     buying_price DOUBLE PRECISION NOT NULL DEFAULT 0,
                     selling_price DOUBLE PRECISION NOT NULL DEFAULT 0,
                     stock_quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
-                    reorder_level DOUBLE PRECISION NOT NULL DEFAULT 5
+                    reorder_level DOUBLE PRECISION NOT NULL DEFAULT 5,
+                    offline_product_id UUID
                 )
+            """)
+            cursor.execute("""
+                ALTER TABLE products
+                ADD COLUMN IF NOT EXISTS offline_product_id UUID
+            """)
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_products_offline_product_id
+                ON products (offline_product_id)
+                WHERE offline_product_id IS NOT NULL
             """)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS sales (
