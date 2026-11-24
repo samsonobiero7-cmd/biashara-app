@@ -57,7 +57,8 @@ div[data-testid="stMetric"] {
 }
 .small-muted { color:#718078 !important; font-size:0.88rem; }
 div[data-testid="stDataFrame"] { border-radius:12px; }
-[data-testid="stToolbar"], [data-testid="stFooter"] { display:none !important; }
+[data-testid="stToolbar"] > div > div:last-child { display:none !important; }
+[data-testid="stFooter"] { display:none !important; }
 footer { display:none !important; }
 </style>
 """, unsafe_allow_html=True)
