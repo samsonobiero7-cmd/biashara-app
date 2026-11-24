@@ -874,7 +874,7 @@ elif page == "Sales":
         )
         st.link_button(
             "Open offline checkout" if lang == "en" else "Fungua mauzo ya nje ya mtandao",
-            "/app/static/offline/index.html",
+            "./app/static/offline/index.html",
             width="stretch",
         )
         sync_offline_sales(biz, products, lang)
