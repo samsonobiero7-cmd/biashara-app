@@ -3,7 +3,7 @@ from translations import get_text
 DB_NAME = "biashara_manager.db"
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("PRAGMA foreign_keys = ON;")
@@ -199,6 +199,8 @@ def record_sale(business_id, sale_items_list, payment_method="Cash", payment_ref
     total_amount = sum(
         item["quantity"] * item["unit_price"] for item in sale_items_list
     )
+
+    clean_ref = payment_reference.strip().upper() if payment_reference else None
     
     # Insert sale header with payment method and reference
     cursor.execute(
@@ -206,7 +208,7 @@ def record_sale(business_id, sale_items_list, payment_method="Cash", payment_ref
         INSERT INTO sales (business_id, total_amount, payment_method, payment_reference)
         VALUES (?, ?, ?, ?)
     """,
-        (business_id, total_amount, payment_method, payment_reference),
+        (business_id, total_amount, payment_method, clean_ref),
     )
     sale_id = cursor.lastrowid
     
@@ -248,156 +250,3 @@ def record_sale(business_id, sale_items_list, payment_method="Cash", payment_ref
                 f" {prod['reorder_level']})"
             )
             print("!" * 50 + "\n")
-            
-    conn.commit()
-    conn.close()
-    
-    ref_text = f" (Ref: {payment_reference})" if payment_reference else ""
-    print(
-        f"✅ Sale recorded successfully! ID: {sale_id} | Total: KES {total_amount} | Paid via: {payment_method}{ref_text}"
-    )
-    return sale_id
-
-def record_expense(business_id, category, amount, description="", lang="en"):
-    """Records an operational overhead or business expense."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        INSERT INTO expenses (business_id, category, amount, description)
-        VALUES (?, ?, ?, ?)
-    """,
-        (business_id, category, amount, description),
-    )
-    conn.commit()
-    conn.close()
-    print(
-        f"✅ Expense logged: KES {amount} under category '{category}' -"
-        f" {description}"
-    )
-
-# --- 5. DAILY REPORTING ---
-def get_daily_summary(lang="en"):
-    """Fetches the aggregated daily financial and activity summary across shops."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM daily_business_summary")
-    rows = cursor.fetchall()
-    conn.close()
-    if not rows:
-        print(get_text("no_activity", lang=lang))
-        return
-    print(get_text("summary_title", lang=lang))
-    for row in rows:
-        date_val = row["activity_date"] or get_text("no_activity_date", lang=lang)
-        print(f"Biashara: {row['business_name']}")
-        print(f"  - Date / Tarehe: {date_val}")
-        print(f"  - Transactions / Mauzo: {row['total_transactions']}")
-        print(f"  - Revenue / Mapato: {row['total_revenue']}")
-        print(f"  - Expenses / Matumizi: {row['total_expenses']}")
-        print(f"  - Restock Cost / Gharama za Bidhaa: {row['total_restock_cost']}")
-        print("-" * 40)
-
-# --- 6. ADVANCED INVENTORY RESTOCKING (PURCHASES) ---
-def record_purchase(business_id, supplier_id, purchase_items_list, notes="", lang="en"):
-    """
-    Records a restock purchase from a supplier, automatically increases 
-    product stock levels, and updates buying prices if changed.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    try:
-        # Calculate total purchase cost
-        total_cost = sum(item['quantity_added'] * item['unit_buying_price'] for item in purchase_items_list)
-        
-        # Insert purchase header
-        cursor.execute("""
-            INSERT INTO purchases (business_id, supplier_id, total_cost, notes)
-            VALUES (?, ?, ?, ?)
-        """, (business_id, supplier_id, total_cost, notes))
-        purchase_id = cursor.lastrowid
-        
-        # Process each restocked item
-        for item in purchase_items_list:
-            cursor.execute("""
-                INSERT INTO purchase_items (purchase_id, product_id, quantity_added, unit_buying_price)
-                VALUES (?, ?, ?, ?)
-            """, (purchase_id, item['product_id'], item['quantity_added'], item['unit_buying_price']))
-            
-            # Automatically increase stock quantity and update buying price
-            cursor.execute("""
-                UPDATE products 
-                SET stock_quantity = stock_quantity + ?, 
-                    buying_price = ?
-                WHERE product_id = ?
-            """, (item['quantity_added'], item['unit_buying_price'], item['product_id']))
-            
-        conn.commit()
-        print(f"✅ Restock purchase recorded successfully! Purchase ID: {purchase_id}, Total Cost: KES {total_cost}")
-        return purchase_id
-    except sqlite3.Error as e:
-        conn.rollback()
-        print(f"❌ Error recording purchase, transaction rolled back: {e}")
-        return None
-    finally:
-        conn.close()
-
-# --- 7. SAFE TRANSACTION WRAPPER WITH INVENTORY VALIDATION [UPDATED WITH PAYMENTS] ---
-def record_sale_secure(business_id, sale_items_list, payment_method="Cash", payment_reference=None, lang="en"):
-    """
-    Records a sale with strict validation: checks if stock is sufficient 
-    BEFORE executing, includes payment method/reference tracking, and uses 
-    database transactions (rollback) to prevent partial or corrupt states.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    try:
-        # Step 1: Pre-check inventory availability for all items
-        for item in sale_items_list:
-            cursor.execute("SELECT product_name, stock_quantity FROM products WHERE product_id = ?", (item['product_id'],))
-            prod = cursor.fetchone()
-            if not prod:
-                raise ValueError(f"Product ID {item['product_id']} does not exist.")
-            if prod['stock_quantity'] < item['quantity']:
-                raise ValueError(f"❌ Insufficient stock for '{prod['product_name']}'. Available: {prod['stock_quantity']}, Requested: {item['quantity']}")
-                
-        # Step 2: Calculate total and insert sale header with payment info
-        total_amount = sum(item['quantity'] * item['unit_price'] for item in sale_items_list)
-        cursor.execute("""
-            INSERT INTO sales (business_id, total_amount, payment_method, payment_reference)
-            VALUES (?, ?, ?, ?)
-        """, (business_id, total_amount, payment_method, payment_reference))
-        sale_id = cursor.lastrowid
-        
-        # Step 3: Insert line items and deduct stock safely
-        for item in sale_items_list:
-            cursor.execute("""
-                INSERT INTO sale_items (sale_id, product_id, quantity, unit_price)
-                VALUES (?, ?, ?, ?)
-            """, (sale_id, item['product_id'], item['quantity'], item['unit_price']))
-            
-            cursor.execute("""
-                UPDATE products 
-                SET stock_quantity = stock_quantity - ? 
-                WHERE product_id = ?
-            """, (item['quantity'], item['product_id']))
-            
-            # Check for low stock notification
-            cursor.execute("SELECT product_name, stock_quantity, reorder_level FROM products WHERE product_id = ?", (item['product_id'],))
-            prod = cursor.fetchone()
-            if prod and prod['stock_quantity'] <= prod['reorder_level']:
-                print(f"\n🚨 **AUTOMATIC RESTOCK ALERT**: '{prod['product_name']}' is low! Left: {prod['stock_quantity']} (Threshold: {prod['reorder_level']})")
-                
-        conn.commit()
-        ref_text = f" (Ref: {payment_reference})" if payment_reference else ""
-        print(f"✅ Secure sale recorded successfully! ID: {sale_id} | Total: KES {total_amount} | Paid via: {payment_method}{ref_text}")
-        return sale_id
-        
-    except Exception as e:
-        conn.rollback() # Revert all database changes if anything fails
-        print(f"❌ Transaction Failed & Rolled Back: {e}")
-        return None
-    finally:
-        conn.close()

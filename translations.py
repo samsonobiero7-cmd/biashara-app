@@ -18,6 +18,7 @@ TEXTS = {
         "visa_card": "Visa / Card",
         "bank_transfer": "Bank Transfer",
         "sale_success": "Sale recorded successfully! ID: {id} | Total: KES {total} | Paid via: {method}",
+        "duplicate_payment_ref": "Duplicate payment reference '{ref}' already exists.",
     },
     "sw": {
         "biz_registered": (
@@ -40,6 +41,7 @@ TEXTS = {
         "visa_card": "Kadi ya Benki / Visa",
         "bank_transfer": "Uhamisho wa Benki",
         "sale_success": "Mauzo yamerekodiwa vizuri! Nambari: {id} | Jumla: KES {total} | Imelipwa kwa: {method}",
+        "duplicate_payment_ref": "Nambari ya muamala '{ref}' tayari imetumika.",
     },
 }
 

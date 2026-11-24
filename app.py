@@ -10,7 +10,7 @@ from translations import get_text
 # ------------------------------------------------------------
 st.set_page_config(
     page_title="Biashara | Business Manager",
-    page_icon="🟢",
+    page_icon="logo.svg",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -225,67 +225,120 @@ UI_STRINGS = {
     }
 }
 
+
 def t(key, lang="en", **kwargs):
     text = UI_STRINGS.get(lang, UI_STRINGS["en"]).get(key)
     if text is None:
         text = get_text(key, lang=lang)
     return text.format(**kwargs) if kwargs else text
 
+
 # ---------- Initialize SQLite Database ----------
 setup_biashara.create_biashara_database()
-conn = operations.get_db_connection()
 if "custom_attributes" not in st.session_state:
     st.session_state.custom_attributes = {}
+
+
+def get_conn():
+    return operations.get_db_connection()
+
+
+def is_duplicate_reference(payment_ref: str) -> bool:
+    if not payment_ref:
+        return False
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT 1 FROM sales WHERE UPPER(TRIM(payment_reference)) = ? LIMIT 1",
+            (payment_ref.strip().upper(),),
+        )
+        return cur.fetchone() is not None
+    finally:
+        conn.close()
+
 
 def money(value):
     return f"KSh {float(value or 0):,.2f}"
 
+
 # ---------- Database Helper Queries ----------
 def get_all_businesses():
-    cur = conn.cursor()
-    cur.execute("SELECT business_id, business_name, business_type FROM businesses ORDER BY business_id ASC")
-    return [dict(row) for row in cur.fetchall()]
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT business_id, business_name, business_type FROM businesses ORDER BY business_id ASC")
+        return [dict(row) for row in cur.fetchall()]
+    finally:
+        conn.close()
+
 
 def get_business_products(bid):
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT product_id, product_name, buying_price, selling_price, stock_quantity, reorder_level
-        FROM products WHERE business_id = ? ORDER BY product_name ASC
-    """, (bid,))
-    return [dict(row) for row in cur.fetchall()]
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT product_id, product_name, buying_price, selling_price, stock_quantity, reorder_level
+            FROM products WHERE business_id = ? ORDER BY product_name ASC
+        """, (bid,))
+        return [dict(row) for row in cur.fetchall()]
+    finally:
+        conn.close()
 
-def get_business_sales(bid):
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT s.sale_id, DATE(s.sale_date) AS sale_day, s.sale_date,
-               p.product_name, si.quantity, si.unit_price, p.buying_price,
-               (si.quantity * si.unit_price) AS total,
-               (si.quantity * (si.unit_price - COALESCE(p.buying_price, 0))) AS estimated_profit,
-               s.payment_method, s.payment_reference
-        FROM sales s
-        JOIN sale_items si ON s.sale_id = si.sale_id
-        JOIN products p ON si.product_id = p.product_id
-        WHERE s.business_id = ?
-        ORDER BY s.sale_date DESC
-    """, (bid,))
-    return [dict(row) for row in cur.fetchall()]
+
+def get_business_sales(bid, day_str=None):
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        if day_str:
+            cur.execute("""
+                SELECT sale_id, sale_day, sale_date, product_name, quantity,
+                       unit_price, buying_price, total, estimated_profit,
+                       payment_method, payment_reference
+                FROM daily_sales_view
+                WHERE business_id = ? AND sale_day = ?
+                ORDER BY sale_date DESC
+            """, (bid, day_str))
+        else:
+            cur.execute("""
+                SELECT sale_id, sale_day, sale_date, product_name, quantity,
+                       unit_price, buying_price, total, estimated_profit,
+                       payment_method, payment_reference
+                FROM daily_sales_view
+                WHERE business_id = ?
+                ORDER BY sale_date DESC
+            """, (bid,))
+        return [dict(row) for row in cur.fetchall()]
+    finally:
+        conn.close()
+
 
 def get_business_expenses(bid):
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT expense_id, DATE(expense_date) AS expense_day, expense_date,
-               category, amount, description
-        FROM expenses
-        WHERE business_id = ?
-        ORDER BY expense_date DESC
-    """, (bid,))
-    return [dict(row) for row in cur.fetchall()]
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT expense_id, DATE(expense_date) AS expense_day, expense_date,
+                   category, amount, description
+            FROM expenses
+            WHERE business_id = ?
+            ORDER BY expense_date DESC
+        """, (bid,))
+        return [dict(row) for row in cur.fetchall()]
+    finally:
+        conn.close()
+
 
 def get_business_summary(bid):
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM daily_business_summary WHERE business_id = ?", (bid,))
-    row = cur.fetchone()
-    return dict(row) if row else None
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM daily_business_summary WHERE business_id = ?", (bid,))
+        row = cur.fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
 
 # ---------- Sidebar ----------
 businesses = get_all_businesses()
@@ -333,6 +386,7 @@ if not biz and page != "Businesses":
     st.warning(t("warn_no_biz", lang))
     st.stop()
 
+
 # ---------- Header Helper ----------
 def page_header(title, subtitle):
     c1, c2 = st.columns([4, 1])
@@ -343,6 +397,7 @@ def page_header(title, subtitle):
         st.write("")
         st.write(f"**{date.today().strftime('%d %b %Y')}**")
     st.divider()
+
 
 # ============================================================
 # 1. OVERVIEW
@@ -551,12 +606,15 @@ elif page == "Sales":
                     st.info(f"Sale total: **{money(total)}** | Paid via: **{payment_method}**")
                 else:
                     st.info(f"Jumla ya mauzo: **{money(total)}** | Malipo: **{payment_method}**")
+                clean_ref = payment_reference.strip().upper() if payment_reference else ""
                 submit = st.form_submit_button(t("confirm_sale_btn", lang), type="primary", use_container_width=True)
                 if submit:
                     if qty > chosen_product["stock_quantity"]:
                         st.error(f"Insufficient stock. Only {chosen_product['stock_quantity']:g} units available." if lang == "en" else f"Stoo haitoshi. Zimebaki {chosen_product['stock_quantity']:g} pekee.")
-                    elif payment_method in ["M-Pesa", "Visa / Card", "Bank Transfer"] and not payment_reference.strip():
+                    elif payment_method in ["M-Pesa", "Visa / Card", "Bank Transfer"] and not clean_ref:
                         st.error(f"Please provide a transaction reference code for {payment_method}." if lang == "en" else f"Tafadhali weka nambari ya muamala kwa {payment_method}.")
+                    elif clean_ref and is_duplicate_reference(clean_ref):
+                        st.warning(f"Duplicate payment reference '{clean_ref}' already exists." if lang == "en" else f"Nambari ya muamala '{clean_ref}' tayari imetumika.")
                     else:
                         sale_items = [{
                             "product_id": chosen_product["product_id"],
@@ -567,7 +625,7 @@ elif page == "Sales":
                             business_id=biz["business_id"],
                             sale_items_list=sale_items,
                             payment_method=payment_method,
-                            payment_reference=payment_reference.strip() if payment_reference else None,
+                            payment_reference=clean_ref or None,
                             lang=lang
                         )
                         if sale_id:
@@ -686,7 +744,7 @@ elif page == "Daily records":
     page_header(t("daily_title", lang), t("daily_sub", lang))
     chosen_date = st.date_input(t("choose_date", lang), value=date.today())
     ds = chosen_date.isoformat()
-    sales = [s for s in get_business_sales(biz["business_id"]) if s["sale_day"] == ds]
+    sales = get_business_sales(biz["business_id"], day_str=ds)
     expenses = [e for e in get_business_expenses(biz["business_id"]) if e["expense_day"] == ds]
     sales_sum = sum(s["total"] for s in sales)
     exp_sum = sum(e["amount"] for e in expenses)
@@ -698,7 +756,7 @@ elif page == "Daily records":
     with st.expander("See sales for this date" if lang == "en" else "Angalia mauzo ya tarehe hii", expanded=True):
         if sales:
             st.dataframe(
-                pd.DataFrame(sales)[["sale_date", "product_name", "quantity", "unit_price", "total", "payment_method"]],
+                pd.DataFrame(sales)[["sale_date", "product_name", "quantity", "unit_price", "total", "payment_method", "payment_reference"]],
                 use_container_width=True,
                 hide_index=True
             )
@@ -756,4 +814,3 @@ elif page == "Reports":
 
 st.divider()
 st.caption(t("footer_caption", lang))
-conn.close()

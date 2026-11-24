@@ -1,7 +1,16 @@
 import sqlite3
 
+DB_NAME = "biashara_manager.db"
+
+
+def get_connection():
+    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 def create_biashara_database():
-    conn = sqlite3.connect("biashara_manager.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     # 1. Businesses Table
@@ -27,7 +36,7 @@ def create_biashara_database():
         )
     """)
 
-    # 3. Sales Table (with comprehensive payment support & reference codes)
+    # 3. Sales Table (with payment method & reference codes)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sales (
             sale_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,12 +52,19 @@ def create_biashara_database():
     # Safely migrate/add columns if upgrading an older database version
     cursor.execute("PRAGMA table_info(sales)")
     sales_cols = [col[1] for col in cursor.fetchall()]
-    
+
     if "payment_method" not in sales_cols:
         cursor.execute("ALTER TABLE sales ADD COLUMN payment_method TEXT DEFAULT 'Cash'")
-        
+
     if "payment_reference" not in sales_cols:
         cursor.execute("ALTER TABLE sales ADD COLUMN payment_reference TEXT")
+
+    # Prevent duplicate non-null/non-empty payment references
+    cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_unique_payment_ref
+        ON sales(payment_reference)
+        WHERE payment_reference IS NOT NULL AND TRIM(payment_reference) != ''
+    """)
 
     # 4. Sale Items Table
     cursor.execute("""
@@ -101,10 +117,32 @@ def create_biashara_database():
         )
     """)
 
-    # 7. Financial & Daily Summary View
+    # 7. Daily Sales View (queryable by sale_day and business_id)
+    cursor.execute("DROP VIEW IF EXISTS daily_sales_view")
+    cursor.execute("""
+        CREATE VIEW IF NOT EXISTS daily_sales_view AS
+        SELECT
+            s.sale_id,
+            s.business_id,
+            DATE(s.sale_date) AS sale_day,
+            s.sale_date,
+            p.product_name,
+            si.quantity,
+            si.unit_price,
+            p.buying_price,
+            (si.quantity * si.unit_price) AS total,
+            (si.quantity * (si.unit_price - COALESCE(p.buying_price, 0))) AS estimated_profit,
+            s.payment_method,
+            s.payment_reference
+        FROM sales s
+        JOIN sale_items si ON s.sale_id = si.sale_id
+        JOIN products p ON si.product_id = p.product_id
+    """)
+
+    # 8. Financial & Daily Summary View
     cursor.execute("""
         CREATE VIEW IF NOT EXISTS daily_business_summary AS
-        SELECT 
+        SELECT
             b.business_id,
             b.business_name,
             COUNT(DISTINCT s.sale_id) AS total_transactions,
@@ -119,6 +157,7 @@ def create_biashara_database():
     conn.commit()
     conn.close()
 
+
 if __name__ == "__main__":
     create_biashara_database()
-    print("Database schema created/updated successfully with payment tracking.")
+    print(f"Database '{DB_NAME}' schema created/updated successfully.")
