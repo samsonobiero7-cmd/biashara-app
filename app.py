@@ -143,6 +143,13 @@ UI_STRINGS = {
         "sales_on_date": "Sales on date",
         "exp_on_date": "Expenses on date",
         "sales_less_exp": "Sales less expenses",
+        "sales_col_date": "Date",
+        "sales_col_product": "Product",
+        "sales_col_quantity": "Qty",
+        "sales_col_unit_price": "Unit Price",
+        "sales_col_total": "Total (KSh)",
+        "sales_col_payment": "Payment",
+        "sales_col_payment_reference": "Reference / Code",
         "reports_title": "Reports & insights",
         "reports_sub": "Overall performance for {biz}.",
         "total_sales_rev": "Total sales revenue",
@@ -225,6 +232,13 @@ UI_STRINGS = {
         "sales_on_date": "Mauzo ya tarehe hii",
         "exp_on_date": "Matumizi ya tarehe hii",
         "sales_less_exp": "Mauzo baada ya matumizi",
+        "sales_col_date": "Tarehe",
+        "sales_col_product": "Bidhaa",
+        "sales_col_quantity": "Idadi",
+        "sales_col_unit_price": "Bei",
+        "sales_col_total": "Jumla (KSh)",
+        "sales_col_payment": "Malipo",
+        "sales_col_payment_reference": "Kumbukumbu",
         "reports_title": "Ripoti na takwimu",
         "reports_sub": "Utendaji wa jumla wa {biz}.",
         "total_sales_rev": "Jumla ya mapato ya mauzo",
@@ -1075,8 +1089,21 @@ elif page == "Daily records":
     st.caption("This is a daily cashflow summary. Inventory restock costs and credit balances are tracked separately." if lang == "en" else "Huu ni muhtasari wa mtiririko wa fedha wa siku.")
     with st.expander("See sales for this date" if lang == "en" else "Angalia mauzo ya tarehe hii", expanded=True):
         if sales:
+            sales_df = pd.DataFrame(sales)[
+                ["sale_date", "product_name", "quantity", "unit_price", "total", "payment_method", "payment_reference"]
+            ].rename(
+                columns={
+                    "sale_date": t("sales_col_date", lang),
+                    "product_name": t("sales_col_product", lang),
+                    "quantity": t("sales_col_quantity", lang),
+                    "unit_price": t("sales_col_unit_price", lang),
+                    "total": t("sales_col_total", lang),
+                    "payment_method": t("sales_col_payment", lang),
+                    "payment_reference": t("sales_col_payment_reference", lang),
+                }
+            )
             st.dataframe(
-                pd.DataFrame(sales)[["sale_date", "product_name", "quantity", "unit_price", "total", "payment_method", "payment_reference"]],
+                sales_df,
                 use_container_width=True,
                 hide_index=True
             )
