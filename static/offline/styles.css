@@ -18,8 +18,9 @@ body {
   align-items: center;
   gap: 12px;
   padding: 14px max(16px, calc((100% - 720px) / 2));
-  background: #16764a;
-  color: #fff;
+  border-bottom: 1px solid #dfe7e1;
+  background: #fff;
+  color: #17231c;
 }
 
 .topbar h1,
@@ -39,6 +40,7 @@ body {
 .status {
   margin-left: auto;
   font-size: 0.8rem;
+  color: #145d3b;
 }
 
 main {
