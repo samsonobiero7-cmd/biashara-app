@@ -1,4 +1,4 @@
-const CACHE_NAME = "biashara-offline-shell-v4";
+const CACHE_NAME = "biashara-offline-shell-v5";
 const APP_FILES = [
   "./index.html",
   "./app.js",

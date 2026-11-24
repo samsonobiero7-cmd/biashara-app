@@ -19,11 +19,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-if "biashara_dark_mode" not in st.session_state:
-    st.session_state["biashara_dark_mode"] = False
-theme_mode = "dark" if st.session_state["biashara_dark_mode"] else "light"
-st.session_state["biashara_theme_mode"] = theme_mode
-
 # ---------- Custom Mobile App Icon & PWA Manifest Links ----------
 st.markdown("""
     <link rel="manifest" href="/app/static/manifest.json?v=2">
@@ -72,98 +67,9 @@ footer { display:none !important; }
 </style>
 """, unsafe_allow_html=True)
 
-theme_colors = {
-    "light": {
-        "page": "#ffffff",
-        "sidebar": "#f3f6f4",
-        "surface": "#ffffff",
-        "input": "#ffffff",
-        "text": "#17231c",
-        "muted": "#5b6b60",
-        "border": "#dfe7e1",
-        "accent": "#16764a",
-    },
-    "dark": {
-        "page": "#111813",
-        "sidebar": "#18231b",
-        "surface": "#1e2a22",
-        "input": "#172119",
-        "text": "#e9f2ec",
-        "muted": "#b3c0b7",
-        "border": "#3a4b3f",
-        "accent": "#258451",
-    },
-}[theme_mode]
-theme_css = """
-<style>
-html {
-  color-scheme: THEME_MODE;
-  --primary-color: THEME_ACCENT;
-  --background-color: THEME_PAGE;
-  --secondary-background-color: THEME_SURFACE;
-  --text-color: THEME_TEXT;
-  --border-color: THEME_BORDER;
-}
-body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"],
-[data-testid="stMainBlockContainer"] {
-  background-color: THEME_PAGE !important;
-  color: THEME_TEXT !important;
-}
-[data-testid="stHeader"] {
-  background-color: THEME_PAGE !important;
-}
-[data-testid="stSidebar"], [data-testid="stSidebar"] > div {
-  background-color: THEME_SIDEBAR !important;
-  color: THEME_TEXT !important;
-}
-[data-testid="stSidebar"] [data-testid="stImage"] img {
-  background-color: #ffffff;
-  border-radius: 8px;
-}
-[data-testid="stMarkdownContainer"], [data-testid="stCaptionContainer"],
-[data-testid="stWidgetLabel"], [data-testid="stText"], label, p, li {
-  color: THEME_TEXT !important;
-}
-a { color: THEME_ACCENT !important; }
-input:not([type="checkbox"]):not([type="radio"]), textarea,
-[data-baseweb="input"] > div, [data-baseweb="select"] > div {
-  background-color: THEME_INPUT !important;
-  color: THEME_TEXT !important;
-  border-color: THEME_BORDER !important;
-}
-input::placeholder, textarea::placeholder {
-  color: THEME_MUTED !important;
-}
-div[data-testid="stMetric"], [data-testid="stForm"],
-[data-testid="stExpander"], [data-testid="stAlert"],
-[data-testid="stDataFrame"], [data-testid="stTable"] {
-  background-color: THEME_SURFACE !important;
-  border-color: THEME_BORDER !important;
-  color: THEME_TEXT !important;
-}
-hr { border-color: THEME_BORDER !important; }
-[data-testid="stVegaLiteChart"] { background-color: THEME_SURFACE !important; }
-[data-testid="stVegaLiteChart"] svg text { fill: THEME_TEXT !important; }
-</style>
-"""
-for token, value in {
-    "THEME_MODE": theme_mode,
-    "THEME_PAGE": theme_colors["page"],
-    "THEME_SIDEBAR": theme_colors["sidebar"],
-    "THEME_SURFACE": theme_colors["surface"],
-    "THEME_INPUT": theme_colors["input"],
-    "THEME_TEXT": theme_colors["text"],
-    "THEME_MUTED": theme_colors["muted"],
-    "THEME_BORDER": theme_colors["border"],
-    "THEME_ACCENT": theme_colors["accent"],
-}.items():
-    theme_css = theme_css.replace(token, value)
-st.markdown(theme_css, unsafe_allow_html=True)
-
 # ---------- Bilingual Translation Helper ----------
 UI_STRINGS = {
     "en": {
-        "dark_mode": "Dark mode",
         "tagline": "Your business, made simpler.",
         "current_biz": "CURRENT BUSINESS",
         "add_first_biz": "Add your first business to get started.",
@@ -246,7 +152,6 @@ UI_STRINGS = {
         "footer_caption": "Biashara • Built for everyday businesses",
     },
     "sw": {
-        "dark_mode": "Hali ya giza",
         "tagline": "Biashara yako, imerahisishwa.",
         "current_biz": "BIASHARA YA SASA",
         "add_first_biz": "Ongeza biashara yako ya kwanza ili kuanza.",
@@ -338,20 +243,6 @@ def t(key, lang="en", **kwargs):
     return text.format(**kwargs) if kwargs else text
 
 
-def update_theme_from_sidebar():
-    st.session_state["biashara_theme_mode"] = (
-        "dark" if st.session_state["biashara_dark_mode"] else "light"
-    )
-
-
-def sync_theme_from_browser():
-    component_state = st.session_state.get("biashara-theme-sync", {})
-    mode = component_state.get("theme_mode")
-    if mode in {"light", "dark"}:
-        st.session_state["biashara_theme_mode"] = mode
-        st.session_state["biashara_dark_mode"] = mode == "dark"
-
-
 def offline_checkout_enabled():
     enabled = os.getenv("OFFLINE_CHECKOUT_ENABLED")
     if enabled is None:
@@ -369,15 +260,6 @@ OFFLINE_SYNC_COMPONENT = st.components.v2.component(
         encoding="utf-8"
     ),
 )
-
-THEME_SYNC_COMPONENT = st.components.v2.component(
-    "biashara_theme_sync",
-    html="<div aria-hidden='true'></div>",
-    js=(Path(__file__).parent / "static" / "theme_bridge.js").read_text(
-        encoding="utf-8"
-    ),
-)
-
 
 def require_signed_in_owner():
     required_settings = {
@@ -758,20 +640,6 @@ with st.sidebar:
     )
     lang = "en" if lang_choice == "English" else "sw"
     st.session_state.lang = lang
-
-    st.toggle(
-        t("dark_mode", lang),
-        key="biashara_dark_mode",
-        on_change=update_theme_from_sidebar,
-    )
-    theme_mode = "dark" if st.session_state["biashara_dark_mode"] else "light"
-    st.session_state["biashara_theme_mode"] = theme_mode
-    THEME_SYNC_COMPONENT(
-        data={"theme_mode": theme_mode},
-        default={"theme_mode": theme_mode},
-        on_theme_mode_change=sync_theme_from_browser,
-        key="biashara-theme-sync",
-    )
 
     st.caption(t("tagline", lang))
     st.divider()

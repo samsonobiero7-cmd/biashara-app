@@ -1,6 +1,6 @@
 const DATABASE_NAME = "biashara-offline";
 const DATABASE_VERSION = 1;
-const THEME_STORAGE_KEY = "biashara-theme-mode";
+const THEME_STORAGE_KEY = "biashara-offline-theme-mode";
 const catalogStoreName = "catalogs";
 const saleStoreName = "sales";
 
