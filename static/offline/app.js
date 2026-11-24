@@ -166,7 +166,7 @@ function renderProducts() {
   activeCatalog.products.forEach((product) => {
     const option = document.createElement("option");
     option.value = product.product_id;
-    option.textContent = `${product.product_name} — ${product.stock_quantity} in stock`;
+    option.textContent = `${product.product_name} — ${product.stock_quantity} packs/items in stock`;
     productSelect.append(option);
   });
 
@@ -257,7 +257,6 @@ async function selectCatalog(key) {
   }
 
   localStorage.setItem("biashara-offline-catalog", key);
-  document.getElementById("business-owner").textContent = activeCatalog.owner_email;
   renderProducts();
   renderCart();
   await renderPendingCount();
@@ -278,7 +277,7 @@ async function loadCatalogs() {
   catalogs.forEach((catalog) => {
     const option = document.createElement("option");
     option.value = catalog.key;
-    option.textContent = `${catalog.business_name} (${catalog.owner_email})`;
+    option.textContent = catalog.business_name;
     businessSelect.append(option);
   });
 
@@ -308,7 +307,7 @@ async function addItemToCart() {
     .filter((item) => Number(item.product_id) === Number(product.product_id))
     .reduce((sum, item) => sum + item.quantity, 0);
   if (quantity + alreadyInCart > Number(product.stock_quantity)) {
-    message.textContent = `Only ${product.stock_quantity} units are in this device's saved stock.`;
+    message.textContent = `Only ${product.stock_quantity} packs/items are in this device's saved stock.`;
     return;
   }
 

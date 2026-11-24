@@ -109,18 +109,20 @@ UI_STRINGS = {
         "tab_add_prod": "＋ Add product",
         "tab_custom_attr": "🏷️ Custom attributes",
         "no_prods_yet": "No products yet. Add your first product in the **＋ Add product** tab.",
-        "prod_name_lbl": "Product name",
-        "opening_stock": "Opening stock",
-        "low_stock_at": "Low-stock alert at",
-        "buying_price": "Buying price (KSh)",
-        "selling_price": "Selling price (KSh)",
+        "prod_name_lbl": "Product name / pack size",
+        "opening_stock": "Opening stock (packs/items)",
+        "low_stock_at": "Low-stock alert at (packs/items)",
+        "buying_price": "Buying price per pack/item (KSh)",
+        "selling_price": "Selling price per pack/item (KSh)",
         "save_prod_btn": "Save product",
+        "prod_pack_help": "Add each size as a separate product (e.g. Sugar 500 g, Sugar 1 kg, Cooking oil 500 ml, and Cooking oil 2 L). Each size has its own stock and price; sale quantity is the number of packs/items.",
+        "prod_name_placeholder": "e.g. Cooking oil 500 ml",
         "sales_title": "Record a sale",
         "sales_sub": "Log a sale quickly, select payment method, and keep stock updated.",
         "new_sale_entry": "New sale entry",
         "what_did_you_sell": "What did you sell?",
-        "qty_sold": "Quantity sold",
-        "unit_price_lbl": "Selling price per unit (KSh)",
+        "qty_sold": "Quantity sold (packs/items)",
+        "unit_price_lbl": "Selling price per pack/item (KSh)",
         "confirm_sale_btn": "Confirm sale",
         "exp_title": "Expenses",
         "exp_sub": "Keep an eye on the money going out.",
@@ -134,7 +136,7 @@ UI_STRINGS = {
         "restock_title": "Supplier restocks",
         "restock_sub": "Record incoming stock deliveries to replenish inventory.",
         "select_prod_restock": "Select product restocked",
-        "qty_received": "Quantity received",
+        "qty_received": "Quantity received (packs/items)",
         "delivery_note": "Supplier or delivery note",
         "confirm_restock_btn": "Confirm restock",
         "daily_title": "Daily records",
@@ -198,18 +200,20 @@ UI_STRINGS = {
         "tab_add_prod": "＋ Ongeza bidhaa",
         "tab_custom_attr": "🏷️ Sifa maalum",
         "no_prods_yet": "Hakuna bidhaa bado. Ongeza bidhaa yako ya kwanza katika **＋ Ongeza bidhaa**.",
-        "prod_name_lbl": "Jina la bidhaa",
-        "opening_stock": "Stoo ya kuanzia",
-        "low_stock_at": "Tahadhari stoo ikifikia",
-        "buying_price": "Bei ya kununulia (KSh)",
-        "selling_price": "Bei ya kuuzia (KSh)",
+        "prod_name_lbl": "Jina la bidhaa / ukubwa wa pakiti",
+        "opening_stock": "Stoo ya kuanzia (pakiti/vipande)",
+        "low_stock_at": "Tahadhari stoo ikifikia (pakiti/vipande)",
+        "buying_price": "Bei ya kununua kwa pakiti/kipande (KSh)",
+        "selling_price": "Bei ya kuuza kwa pakiti/kipande (KSh)",
         "save_prod_btn": "Hifadhi bidhaa",
+        "prod_pack_help": "Ongeza kila ukubwa kama bidhaa tofauti (mf. Sukari 500 g, Sukari 1 kg, Mafuta 500 ml, na Mafuta 2 L). Kila ukubwa una stoo na bei yake; idadi ya mauzo ni pakiti/vipande.",
+        "prod_name_placeholder": "mf. Mafuta ya kupika 500 ml",
         "sales_title": "Rekodi mauzo",
         "sales_sub": "Rekodi mauzo haraka, chagua njia ya malipo, na usasishe stoo.",
         "new_sale_entry": "Ingiza mauzo mapya",
         "what_did_you_sell": "Umeuza nini?",
-        "qty_sold": "Idadi iliyouzwa",
-        "unit_price_lbl": "Bei ya kuuzia kwa moja (KSh)",
+        "qty_sold": "Idadi iliyouzwa (pakiti/vipande)",
+        "unit_price_lbl": "Bei ya kuuza kwa pakiti/kipande (KSh)",
         "confirm_sale_btn": "Thibitisha mauzo",
         "exp_title": "Matumizi",
         "exp_sub": "Fuatilia pesa zinazotoka nje ya biashara.",
@@ -223,7 +227,7 @@ UI_STRINGS = {
         "restock_title": "Kuongeza stoo",
         "restock_sub": "Rekodi mizigo mipya iliyoingia kuongeza stoo.",
         "select_prod_restock": "Chagua bidhaa iliyoongezwa",
-        "qty_received": "Idadi iliyopokelewa",
+        "qty_received": "Idadi iliyopokelewa (pakiti/vipande)",
         "delivery_note": "Maelezo ya msambazaji au mzigo",
         "confirm_restock_btn": "Thibitisha mzigo",
         "daily_title": "Rekodi za kila siku",
@@ -751,9 +755,9 @@ if page == "Overview":
         if low_stock:
             for p in low_stock[:6]:
                 if lang == "en":
-                    st.warning(f"**{p['product_name']}** — {p['stock_quantity']:g} units left (Alert below {p['reorder_level']:g})")
+                    st.warning(f"**{p['product_name']}** — {p['stock_quantity']:g} packs/items left (Alert below {p['reorder_level']:g})")
                 else:
-                    st.warning(f"**{p['product_name']}** — Zimebaki {p['stock_quantity']:g} (Tahadhari chini ya {p['reorder_level']:g})")
+                    st.warning(f"**{p['product_name']}** — Zimebaki pakiti/vipande {p['stock_quantity']:g} (Tahadhari chini ya {p['reorder_level']:g})")
         else:
             st.success(t("all_caught_up", lang))
 
@@ -813,7 +817,7 @@ elif page == "Products":
                 "product_name": "Product" if lang == "en" else "Bidhaa",
                 "buying_price": "Buying price (KSh)" if lang == "en" else "Bei ya kununua (KSh)",
                 "selling_price": "Selling price (KSh)" if lang == "en" else "Bei ya kuuza (KSh)",
-                "stock_quantity": "In stock" if lang == "en" else "Stoo",
+                "stock_quantity": "In stock (packs/items)" if lang == "en" else "Stoo (pakiti/vipande)",
                 "reorder_level": "Alert below" if lang == "en" else "Tahadhari chini ya"
             })
             st.dataframe(df, use_container_width=True, hide_index=True)
@@ -821,7 +825,11 @@ elif page == "Products":
             st.info(t("no_prods_yet", lang))
     with tab2:
         with st.form("add_product", clear_on_submit=True):
-            name = st.text_input(t("prod_name_lbl", lang), placeholder="e.g. Sugar 2kg")
+            name = st.text_input(
+                t("prod_name_lbl", lang),
+                placeholder=t("prod_name_placeholder", lang)
+            )
+            st.caption(t("prod_pack_help", lang))
             col1, col2 = st.columns(2)
             qty = col1.number_input(t("opening_stock", lang), min_value=0.0, step=1.0, value=10.0)
             reorder = col2.number_input(t("low_stock_at", lang), min_value=0.0, step=1.0, value=5.0)
@@ -910,16 +918,16 @@ elif page == "Sales":
             chosen_product = product_map[chosen_name]
             if lang == "en":
                 st.caption(
-                    f"Available: **{chosen_product['stock_quantity']:g} units** • "
-                    f"Standard price: **{money(chosen_product['selling_price'])}** each"
+                    f"Available: **{chosen_product['stock_quantity']:g} packs/items** • "
+                    f"Standard price: **{money(chosen_product['selling_price'])}** per pack/item"
                 )
             else:
                 st.caption(
-                    f"Zilizopo: **{chosen_product['stock_quantity']:g}** • "
-                    f"Bei ya kawaida: **{money(chosen_product['selling_price'])}** kila moja"
+                    f"Zilizopo: **{chosen_product['stock_quantity']:g} pakiti/vipande** • "
+                    f"Bei ya kawaida: **{money(chosen_product['selling_price'])}** kwa pakiti/kipande"
                 )
             with st.form("record_sale_form", clear_on_submit=True):
-                qty = st.number_input(t("qty_sold", lang), min_value=0.1, value=1.0, step=1.0)
+                qty = st.number_input(t("qty_sold", lang), min_value=1.0, value=1.0, step=1.0)
                 unit_price = st.number_input(
                     t("unit_price_lbl", lang),
                     min_value=0.0,
@@ -941,7 +949,7 @@ elif page == "Sales":
                 submit = st.form_submit_button(t("confirm_sale_btn", lang), type="primary", use_container_width=True)
                 if submit:
                     if qty > chosen_product["stock_quantity"]:
-                        st.error(f"Insufficient stock. Only {chosen_product['stock_quantity']:g} units available." if lang == "en" else f"Stoo haitoshi. Zimebaki {chosen_product['stock_quantity']:g} pekee.")
+                        st.error(f"Insufficient stock. Only {chosen_product['stock_quantity']:g} packs/items available." if lang == "en" else f"Stoo haitoshi. Zimebaki pakiti/vipande {chosen_product['stock_quantity']:g} pekee.")
                     elif payment_method in ["M-Pesa", "Visa / Card", "Bank Transfer"] and not clean_ref:
                         st.error(f"Please provide a transaction reference code for {payment_method}." if lang == "en" else f"Tafadhali weka nambari ya muamala kwa {payment_method}.")
                     elif clean_ref and is_duplicate_reference(clean_ref, owner_email):
@@ -1068,7 +1076,7 @@ elif page == "Restocks":
                     owner_email=owner_email,
                     lang=lang
                 )
-                st.success(f"Added {qty_added:g} units of {chosen_name} to stock." if lang == "en" else f"Zimeongezwa {qty_added:g} za {chosen_name} kwenye stoo.")
+                st.success(f"Added {qty_added:g} packs/items of {chosen_name} to stock." if lang == "en" else f"Zimeongezwa pakiti/vipande {qty_added:g} vya {chosen_name} kwenye stoo.")
                 st.rerun()
 
 # ============================================================

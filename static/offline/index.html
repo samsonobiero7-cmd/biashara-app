@@ -30,8 +30,8 @@
       <section id="setup-message" class="card" hidden>
         <h2>Prepare this device first</h2>
         <p>
-          While online, sign in to Biashara Manager and open the Sales page.
-          That saves your products on this device for offline use.
+          While online, sign in to Biashara Manager, add products under Products &amp; stock,
+          then open the Sales page. That saves your product list on this device for offline use.
         </p>
         <a class="button" href="../../../">Open Biashara Manager</a>
       </section>
@@ -40,20 +40,25 @@
         <div class="card">
           <label for="business-select">Business</label>
           <select id="business-select"></select>
-          <p id="business-owner" class="muted"></p>
         </div>
 
         <div class="card">
           <h2>Products</h2>
+          <p class="muted">
+            Only products saved on this device appear here. Add each size as a separate
+            product online (e.g. Cooking oil 500 ml and Cooking oil 2 L), then open the
+            Sales page to refresh this list.
+          </p>
+          <a class="button" href="../../../">Manage products online</a>
           <label for="product-select">Product</label>
           <select id="product-select"></select>
           <div class="form-row">
             <label>
-              Quantity
-              <input id="quantity" type="number" min="0.1" step="0.1" value="1">
+              Quantity (packs/items)
+              <input id="quantity" type="number" min="1" step="1" value="1">
             </label>
             <label>
-              Price each (KSh)
+              Price per pack/item (KSh)
               <input id="unit-price" type="number" min="0" step="0.01">
             </label>
           </div>

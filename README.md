@@ -29,9 +29,11 @@ The app's backup download is scoped to the signed-in owner's businesses.
 
 The offline sales page is a separate, installable test page at
 `/app/static/offline/index.html`. Each device must sign in and open the online
-Sales page first so its business and product list are saved locally. Open the
-offline page once while online so its files are cached; then it can record sales
-without a connection.
+Sales page first so its business and product list are saved locally. Add new
+products or pack sizes in **Products & stock**, then open the online Sales page
+to refresh the catalog on that device. Each pack size should be a separate
+product with its own stock and price. Open the offline page once while online
+so its files are cached; then it can record sales without a connection.
 
 Keep `OFFLINE_CHECKOUT_ENABLED` unset or `false` on the live deployment. Only
 enable it on a separate test deployment connected to a separate test database;
