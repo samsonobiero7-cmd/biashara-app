@@ -54,8 +54,15 @@ div[data-testid="stMetric"] {
     color: #FFFFFF !important;
 }
 #MainMenu { visibility: hidden; }
-header[data-testid="stHeader"] { visibility: hidden; height: 0px; }
-[data-testid="stToolbar"] { display: none; }
+header[data-testid="stHeader"] {
+    background: transparent !important;
+    border: none !important;
+}
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+[data-testid="stStatusWidget"] {
+    display: none !important;
+}
 footer { visibility: hidden; }
 .small-muted { color:#718078 !important; font-size:0.88rem; }
 div[data-testid="stDataFrame"] { border-radius:12px; }
