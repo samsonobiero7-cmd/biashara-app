@@ -2,17 +2,18 @@
   "name": "Biashara Business Manager",
   "short_name": "Biashara",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#16764a",
   "icons": [
     {
-      "src": "/app/static/icon-192.png",
+      "src": "/app/static/icon-192.png?v=2",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/app/static/icon-512.png",
+      "src": "/app/static/icon-512.png?v=2",
       "sizes": "512x512",
       "type": "image/png"
     }

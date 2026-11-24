@@ -10,15 +10,18 @@ from translations import get_text
 # ------------------------------------------------------------
 st.set_page_config(
     page_title="Biashara | Business Manager",
-    page_icon="logo.svg",
+    page_icon="logo.png",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ---------- Custom Mobile App Icon & PWA Manifest Links ----------
 st.markdown("""
-    <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <link rel="manifest" href="/app/static/manifest.json?v=2">
+    <link rel="icon" type="image/png" href="/app/static/logo.png?v=2">
+    <link rel="apple-touch-icon" sizes="180x180" href="/app/static/apple-touch-icon.png?v=2">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Biashara">
 """, unsafe_allow_html=True)
 
 # ---------- Forest-Green & Clean Card Styling (Light/Dark Mode Compatible) ----------
@@ -54,6 +57,8 @@ div[data-testid="stMetric"] {
 }
 .small-muted { color:#718078 !important; font-size:0.88rem; }
 div[data-testid="stDataFrame"] { border-radius:12px; }
+[data-testid="stToolbar"], [data-testid="stFooter"] { display:none !important; }
+footer { display:none !important; }
 </style>
 """, unsafe_allow_html=True)
 
