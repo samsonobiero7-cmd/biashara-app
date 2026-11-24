@@ -384,9 +384,6 @@ def get_business_products(bid, owner_email):
 def sync_offline_sales(business, products, lang):
     bid = int(business["business_id"])
     ack_ids = set(st.session_state.get("offline_ack_ids", []))
-    st.session_state["offline_sync_tick"] = (
-        st.session_state.get("offline_sync_tick", 0) + 1
-    )
     result = OFFLINE_SYNC_COMPONENT(
         data={
             "owner_email": owner_email,
@@ -394,7 +391,6 @@ def sync_offline_sales(business, products, lang):
             "business_name": business["business_name"],
             "products": products,
             "ack_ids": sorted(ack_ids),
-            "sync_tick": st.session_state["offline_sync_tick"],
         },
         on_pending_sales_change=lambda: None,
         on_bridge_error_change=lambda: None,
@@ -875,7 +871,7 @@ elif page == "Sales":
         st.link_button(
             "Open offline checkout" if lang == "en" else "Fungua mauzo ya nje ya mtandao",
             "/app/static/offline/index.html",
-            use_container_width=True,
+            width="stretch",
         )
         sync_offline_sales(biz, products, lang)
     left, right = st.columns([1, 1.15], gap="large")
