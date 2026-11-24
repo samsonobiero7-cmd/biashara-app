@@ -10,16 +10,15 @@ from translations import get_text
 # ------------------------------------------------------------
 st.set_page_config(
     page_title="Biashara | Business Manager",
-    page_icon="logo.png",
+    page_icon="logo.svg",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ---------- Custom Mobile App Icon & PWA Manifest Links ----------
 st.markdown("""
-    <link rel="manifest" href="/app/static/manifest.json">
-    <link rel="icon" type="image/png" href="/app/static/icon-192.png">
-    <link rel="apple-touch-icon" href="/app/static/icon-192.png">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="logo.svg">
 """, unsafe_allow_html=True)
 
 # ---------- Forest-Green & Clean Card Styling (Light/Dark Mode Compatible) ----------
@@ -53,17 +52,6 @@ div[data-testid="stMetric"] {
 [data-testid="stFormSubmitButton"] > button p {
     color: #FFFFFF !important;
 }
-#MainMenu { visibility: hidden; }
-header[data-testid="stHeader"] {
-    background: transparent !important;
-    border: none !important;
-}
-[data-testid="stToolbar"],
-[data-testid="stDecoration"],
-[data-testid="stStatusWidget"] {
-    display: none !important;
-}
-footer { visibility: hidden; }
 .small-muted { color:#718078 !important; font-size:0.88rem; }
 div[data-testid="stDataFrame"] { border-radius:12px; }
 </style>
@@ -355,12 +343,7 @@ def get_business_summary(bid):
 # ---------- Sidebar ----------
 businesses = get_all_businesses()
 with st.sidebar:
-    col_logo, col_title = st.columns([1, 4], vertical_alignment="center")
-    with col_logo:
-        st.image("logo.png", width=36)
-    with col_title:
-        st.markdown("## Biashara")
-
+    st.markdown("# 🟢 Biashara")
     lang_choice = st.selectbox(
         "Language / Lugha",
         ["English", "Kiswahili"],
