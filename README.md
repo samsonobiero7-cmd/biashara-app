@@ -1,7 +1,6 @@
 # Biashara Manager
 
-Biashara Manager uses Google OpenID Connect for sign-in and Supabase
-PostgreSQL for persistent business records.
+Track your small business's products, sales, stock, and expenses in one place.
 
 ## Deployment configuration
 
@@ -25,4 +24,23 @@ password.
 
 The current SQLite database is test data and is not imported into Supabase.
 The app's backup download is scoped to the signed-in owner's businesses.
+
+## Experimental offline checkout
+
+The offline sales page is a separate, installable test page at
+`/app/static/offline/index.html`. Each device must sign in and open the online
+Sales page first so its business and product list are saved locally. Open the
+offline page once while online so its files are cached; then it can record sales
+without a connection.
+
+Keep `OFFLINE_CHECKOUT_ENABLED` unset or `false` on the live deployment. Only
+enable it on a separate test deployment connected to a separate test database;
+offline test sales sync into whichever database that deployment uses.
+
+Offline sales stay in that device's browser until the user signs in again and
+opens the online Sales page. Do not clear the browser's site data or uninstall
+the offline page until its pending sales have synced. If several devices record
+sales while disconnected, synced sales are kept and stock that falls below zero
+must be checked by the business owner. Use a device protected with a screen lock;
+offline products and pending sales are stored locally in that browser.
 

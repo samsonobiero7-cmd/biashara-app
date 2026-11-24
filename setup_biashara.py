@@ -32,8 +32,18 @@ def create_biashara_database():
                     sale_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     total_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
                     payment_method TEXT NOT NULL DEFAULT 'Cash',
-                    payment_reference TEXT
+                    payment_reference TEXT,
+                    offline_sale_id UUID
                 )
+            """)
+            cursor.execute("""
+                ALTER TABLE sales
+                ADD COLUMN IF NOT EXISTS offline_sale_id UUID
+            """)
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_offline_sale_id
+                ON sales (offline_sale_id)
+                WHERE offline_sale_id IS NOT NULL
             """)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS sale_items (

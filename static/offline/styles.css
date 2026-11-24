@@ -1,0 +1,179 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #f3f6f4;
+  color: #17231c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px max(16px, calc((100% - 720px) / 2));
+  background: #16764a;
+  color: #fff;
+}
+
+.topbar h1,
+.topbar p {
+  margin: 0;
+}
+
+.topbar h1 {
+  font-size: 1.15rem;
+}
+
+.topbar p {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.status {
+  margin-left: auto;
+  font-size: 0.8rem;
+}
+
+main {
+  width: min(100% - 24px, 720px);
+  margin: 18px auto;
+}
+
+.card {
+  margin-bottom: 14px;
+  padding: 18px;
+  border: 1px solid #dfe7e1;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(20, 45, 28, 0.05);
+}
+
+.card h2 {
+  margin: 0 0 14px;
+  font-size: 1.1rem;
+}
+
+label {
+  display: block;
+  margin: 12px 0 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #bdc9c0;
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 46px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: #e8f2eb;
+  color: #145d3b;
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button.primary {
+  background: #16764a;
+  color: #fff;
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.cart {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cart li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #edf1ee;
+}
+
+.cart button {
+  border: 0;
+  background: transparent;
+  color: #a22b2b;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pending-row {
+  display: block !important;
+}
+
+.pending-row input {
+  margin-top: 8px;
+}
+
+.pending-row .button {
+  min-height: 38px;
+  margin-top: 8px;
+}
+
+.total {
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.muted {
+  color: #5b6b60;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.message {
+  min-height: 1.3em;
+  color: #145d3b;
+  font-weight: 600;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 480px) {
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}

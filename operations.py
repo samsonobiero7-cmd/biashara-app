@@ -1,5 +1,7 @@
 import json
+import math
 from datetime import datetime, timezone
+from uuid import UUID
 
 from database import get_db_connection
 
@@ -140,18 +142,59 @@ def record_sale_secure(
     payment_method="Cash",
     payment_reference=None,
     lang="en",
+    offline_sale_id=None,
+    offline_sale_date=None,
 ):
     owner_email = _normalized_email(owner_email)
     if not sale_items_list:
         raise ValueError("A sale must contain at least one item.")
-    if any(float(item["quantity"]) <= 0 for item in sale_items_list):
+    if any(
+        not math.isfinite(float(item["quantity"])) or float(item["quantity"]) <= 0
+        for item in sale_items_list
+    ):
         raise ValueError("Sale quantities must be greater than zero.")
+    if any(
+        not math.isfinite(float(item["unit_price"])) or float(item["unit_price"]) < 0
+        for item in sale_items_list
+    ):
+        raise ValueError("Sale prices must be zero or greater.")
+    if offline_sale_id is not None:
+        try:
+            offline_sale_id = UUID(str(offline_sale_id))
+        except (TypeError, ValueError, AttributeError) as error:
+            raise ValueError("Offline sale ID must be a valid UUID.") from error
+        if offline_sale_date is not None:
+            try:
+                offline_sale_date = datetime.fromisoformat(
+                    str(offline_sale_date).replace("Z", "+00:00")
+                )
+            except ValueError as error:
+                raise ValueError("Offline sale date must be a valid ISO timestamp.") from error
+            if offline_sale_date.tzinfo is None:
+                offline_sale_date = offline_sale_date.replace(tzinfo=timezone.utc)
 
     conn = get_db_connection()
     try:
         with conn.transaction():
             with conn.cursor() as cursor:
                 _assert_business_owner(cursor, business_id, owner_email)
+                if offline_sale_id is not None:
+                    cursor.execute(
+                        """
+                        SELECT sale_id, business_id
+                        FROM sales
+                        WHERE offline_sale_id = %s
+                        """,
+                        (offline_sale_id,),
+                    )
+                    existing_sale = cursor.fetchone()
+                    if existing_sale is not None:
+                        if existing_sale["business_id"] != business_id:
+                            raise PermissionError(
+                                "Offline sale ID is already used by another business."
+                            )
+                        return existing_sale["sale_id"]
+
                 quantities_by_product = {}
                 for item in sale_items_list:
                     product_id = item["product_id"]
@@ -171,27 +214,76 @@ def record_sale_secure(
                         (product_id, business_id),
                     )
                     product = cursor.fetchone()
-                    if product is None or quantity > product["stock_quantity"]:
+                    if product is None or (
+                        offline_sale_id is None
+                        and quantity > product["stock_quantity"]
+                    ):
                         return None
 
                 total_amount = sum(
                     float(item["quantity"]) * float(item["unit_price"])
                     for item in sale_items_list
                 )
+                if not math.isfinite(total_amount):
+                    raise ValueError("Sale total must be a finite amount.")
                 clean_reference = (
                     payment_reference.strip().upper() if payment_reference else None
                 )
-                cursor.execute(
-                    """
-                    INSERT INTO sales (
-                        business_id, total_amount, payment_method, payment_reference
+                if offline_sale_id is None:
+                    cursor.execute(
+                        """
+                        INSERT INTO sales (
+                            business_id, total_amount, payment_method, payment_reference
+                        )
+                        VALUES (%s, %s, %s, %s)
+                        RETURNING sale_id
+                        """,
+                        (business_id, total_amount, payment_method, clean_reference),
                     )
-                    VALUES (%s, %s, %s, %s)
-                    RETURNING sale_id
-                    """,
-                    (business_id, total_amount, payment_method, clean_reference),
-                )
-                sale_id = cursor.fetchone()["sale_id"]
+                    sale_id = cursor.fetchone()["sale_id"]
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO sales (
+                            business_id, total_amount, payment_method,
+                            payment_reference, offline_sale_id, sale_date
+                        )
+                        VALUES (%s, %s, %s, %s, %s, COALESCE(%s, CURRENT_TIMESTAMP))
+                        ON CONFLICT (offline_sale_id)
+                            WHERE offline_sale_id IS NOT NULL
+                        DO NOTHING
+                        RETURNING sale_id
+                        """,
+                        (
+                            business_id,
+                            total_amount,
+                            payment_method,
+                            clean_reference,
+                            offline_sale_id,
+                            offline_sale_date,
+                        ),
+                    )
+                    inserted_sale = cursor.fetchone()
+                    if inserted_sale is None:
+                        cursor.execute(
+                            """
+                            SELECT sale_id, business_id
+                            FROM sales
+                            WHERE offline_sale_id = %s
+                            """,
+                            (offline_sale_id,),
+                        )
+                        existing_sale = cursor.fetchone()
+                        if existing_sale is None:
+                            raise RuntimeError(
+                                "Offline sale could not be found after a duplicate insert."
+                            )
+                        if existing_sale["business_id"] != business_id:
+                            raise PermissionError(
+                                "Offline sale ID is already used by another business."
+                            )
+                        return existing_sale["sale_id"]
+                    sale_id = inserted_sale["sale_id"]
 
                 for item in sale_items_list:
                     quantity = float(item["quantity"])

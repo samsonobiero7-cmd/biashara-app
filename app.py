@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 from datetime import date
+import os
+from pathlib import Path
+import psycopg
 import setup_biashara
 import operations
 from translations import get_text
@@ -240,6 +243,25 @@ def t(key, lang="en", **kwargs):
     return text.format(**kwargs) if kwargs else text
 
 
+def offline_checkout_enabled():
+    enabled = os.getenv("OFFLINE_CHECKOUT_ENABLED")
+    if enabled is None:
+        try:
+            enabled = st.secrets.get("OFFLINE_CHECKOUT_ENABLED", "false")
+        except (KeyError, StreamlitSecretNotFoundError):
+            enabled = "false"
+    return str(enabled).strip().lower() in {"1", "true", "yes"}
+
+
+OFFLINE_SYNC_COMPONENT = st.components.v2.component(
+    "biashara_offline_sync",
+    html="<div aria-hidden='true'></div>",
+    js=(Path(__file__).parent / "static" / "offline" / "bridge.js").read_text(
+        encoding="utf-8"
+    ),
+)
+
+
 def require_signed_in_owner():
     required_settings = {
         "redirect_uri",
@@ -357,6 +379,172 @@ def get_business_products(bid, owner_email):
         return [dict(row) for row in cur.fetchall()]
     finally:
         conn.close()
+
+
+def sync_offline_sales(business, products, lang):
+    bid = int(business["business_id"])
+    ack_ids = set(st.session_state.get("offline_ack_ids", []))
+    st.session_state["offline_sync_tick"] = (
+        st.session_state.get("offline_sync_tick", 0) + 1
+    )
+    result = OFFLINE_SYNC_COMPONENT(
+        data={
+            "owner_email": owner_email,
+            "business_id": bid,
+            "business_name": business["business_name"],
+            "products": products,
+            "ack_ids": sorted(ack_ids),
+            "sync_tick": st.session_state["offline_sync_tick"],
+        },
+        on_pending_sales_change=lambda: None,
+        on_bridge_error_change=lambda: None,
+        key=f"offline-sync-{bid}",
+    )
+
+    notice = st.session_state.pop("offline_sync_notice", None)
+    if notice:
+        if notice["stock_conflict"]:
+            st.warning(
+                f"Synced {notice['count']} offline sale(s). Some stock is now below zero; "
+                "please check the stock levels."
+                if lang == "en"
+                else f"Mauzo {notice['count']} ya nje ya mtandao yamesawazishwa. "
+                "Baadhi ya stoo iko chini ya sifuri; tafadhali kagua viwango vya stoo."
+            )
+        else:
+            st.success(
+                f"Synced {notice['count']} offline sale(s)."
+                if lang == "en"
+                else f"Mauzo {notice['count']} ya nje ya mtandao yamesawazishwa."
+            )
+
+    bridge_error = getattr(result, "bridge_error", None)
+    if bridge_error:
+        st.error(f"Offline storage error: {bridge_error}")
+        return
+    if getattr(result, "catalog_ready", False):
+        st.caption(
+            "This device's product list is saved for offline checkout."
+            if lang == "en"
+            else "Orodha ya bidhaa ya kifaa hiki imehifadhiwa kwa mauzo ya nje ya mtandao."
+        )
+
+    pending_sales = getattr(result, "pending_sales", None)
+    if pending_sales is None:
+        return
+    if not isinstance(pending_sales, list):
+        st.error("Offline sales could not be read. They remain saved on this device.")
+        return
+
+    if not pending_sales:
+        st.session_state["offline_ack_ids"] = []
+        return
+
+    accepted_ids = set()
+    errors = []
+    for sale in pending_sales:
+        if not isinstance(sale, dict):
+            errors.append("An offline sale has an invalid format.")
+            continue
+        client_sale_id = sale.get("client_sale_id")
+        if not isinstance(client_sale_id, str):
+            errors.append("An offline sale has an invalid ID.")
+            continue
+        if client_sale_id in ack_ids:
+            continue
+        if sale.get("owner_email") != owner_email:
+            errors.append("An offline sale belongs to a different signed-in account.")
+            continue
+        try:
+            sale_business_id = int(sale.get("business_id", -1))
+        except (TypeError, ValueError):
+            errors.append("An offline sale has an invalid business ID.")
+            continue
+        if sale_business_id != bid:
+            errors.append("An offline sale belongs to a different business.")
+            continue
+
+        raw_items = sale.get("items")
+        if not isinstance(raw_items, list) or not raw_items:
+            errors.append("An offline sale has no products and was not synced.")
+            continue
+
+        sale_items = []
+        try:
+            for item in raw_items:
+                product_id = int(item["product_id"])
+                quantity = float(item["quantity"])
+                unit_price = float(item["unit_price"])
+                if product_id <= 0 or quantity <= 0 or unit_price < 0:
+                    raise ValueError
+                sale_items.append(
+                    {
+                        "product_id": product_id,
+                        "quantity": quantity,
+                        "unit_price": unit_price,
+                    }
+                )
+        except (KeyError, TypeError, ValueError):
+            errors.append("An offline sale has invalid product details.")
+            continue
+
+        payment_method = sale.get("payment_method", "Cash")
+        if payment_method not in ["Cash", "M-Pesa", "Visa / Card", "Bank Transfer"]:
+            errors.append("An offline sale has an unsupported payment method.")
+            continue
+        payment_reference = sale.get("payment_reference")
+        if payment_reference:
+            payment_reference = str(payment_reference).strip().upper()
+        else:
+            payment_reference = None
+        if payment_method != "Cash" and not payment_reference:
+            errors.append(
+                f"Add a payment reference to the offline {payment_method} sale."
+            )
+            continue
+
+        try:
+            sale_id = operations.record_sale_secure(
+                business_id=bid,
+                sale_items_list=sale_items,
+                owner_email=owner_email,
+                payment_method=payment_method,
+                payment_reference=payment_reference,
+                lang=lang,
+                offline_sale_id=client_sale_id,
+                offline_sale_date=sale.get("created_at"),
+            )
+        except (PermissionError, ValueError) as error:
+            errors.append(str(error))
+            continue
+        except psycopg.errors.UniqueViolation:
+            errors.append(
+                "An offline sale has a duplicate payment reference and remains saved "
+                "on this device."
+            )
+            continue
+
+        if sale_id is None:
+            errors.append(
+                "An offline sale refers to a product that no longer exists in this business."
+            )
+            continue
+        accepted_ids.add(client_sale_id)
+
+    if accepted_ids:
+        st.session_state["offline_ack_ids"] = sorted(ack_ids | accepted_ids)
+        refreshed_products = get_business_products(bid, owner_email)
+        has_negative_stock = any(
+            float(product["stock_quantity"]) < 0 for product in refreshed_products
+        )
+        st.session_state["offline_sync_notice"] = {
+            "count": len(accepted_ids),
+            "stock_conflict": has_negative_stock,
+        }
+        st.rerun()
+
+    if errors:
+        st.error("Offline sales need attention: " + " ".join(errors))
 
 
 def get_business_sales(bid, owner_email, day_str=None):
@@ -674,6 +862,22 @@ elif page == "Products":
 elif page == "Sales":
     page_header(t("sales_title", lang), t("sales_sub", lang))
     products = get_business_products(biz["business_id"], owner_email)
+    if offline_checkout_enabled():
+        st.caption(
+            "Offline sales save on this device. Open this page while online to keep its "
+            "product list up to date. Open offline checkout once while online to prepare "
+            "the page for a connection drop."
+            if lang == "en"
+            else "Mauzo ya nje ya mtandao huhifadhiwa kwenye kifaa hiki. Fungua ukurasa huu "
+            "ukiwa mtandaoni kusasisha bidhaa. Fungua mauzo ya nje ya mtandao mara moja "
+            "ukiwa mtandaoni ili kuandaa ukurasa intaneti ikikatika."
+        )
+        st.link_button(
+            "Open offline checkout" if lang == "en" else "Fungua mauzo ya nje ya mtandao",
+            "/app/static/offline/index.html",
+            use_container_width=True,
+        )
+        sync_offline_sales(biz, products, lang)
     left, right = st.columns([1, 1.15], gap="large")
     with left:
         st.markdown(f"### {t('new_sale_entry', lang)}")
