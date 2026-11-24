@@ -33,9 +33,12 @@ Sales page first so its business and product list are saved locally. Open the
 offline page once while online so its files are cached; then it can record sales
 without a connection.
 
-Keep `OFFLINE_CHECKOUT_ENABLED` unset or `false` on the live deployment. Only
-enable it on a separate test deployment connected to a separate test database;
-offline test sales sync into whichever database that deployment uses.
+Keep `OFFLINE_CHECKOUT_ENABLED` unset or `false` until the offline flow has
+been validated on a separate test deployment and database. Before enabling it
+on the live deployment, verify its `DATABASE_URL` points to the intended
+production database and take a backup. Set `OFFLINE_CHECKOUT_ENABLED = true`
+in that deployment's Streamlit Cloud Secrets to expose the offline checkout
+link; offline sales sync into whichever database that deployment uses.
 
 Offline sales stay in that device's browser until the user signs in again and
 opens the online Sales page. Do not clear the browser's site data or uninstall
