@@ -310,6 +310,7 @@ async function loadCatalogs() {
     return;
   }
 
+  document.getElementById("setup-message").hidden = true;
   document.getElementById("checkout").hidden = false;
   catalogs.sort((a, b) => a.business_name.localeCompare(b.business_name));
   catalogs.forEach((catalog) => {
