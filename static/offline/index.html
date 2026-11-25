@@ -28,11 +28,11 @@
 
     <main>
       <section id="setup-message" class="card">
-        <h2>Prepare this device first</h2>
+        <h2>Set up offline sales once</h2>
         <p>
-          While online, sign in to Biashara Manager and open the Sales page once. This saves
-          your business and product list on this device. You can then record sales while
-          offline using products from that saved list.
+          While online, sign in and open Biashara Manager's Sales page once on this browser
+          to save your product list. After that, record offline sales here without returning
+          to Manager between sales. When you're back online, open the Sales page to sync them.
         </p>
         <a class="button" href="../../../">Open Biashara Manager</a>
       </section>
@@ -55,8 +55,8 @@
           <select id="product-select"></select>
           <div class="form-row">
             <label>
-              Quantity (packs/items)
-              <input id="quantity" type="number" min="1" step="1" value="1">
+              Quantity sold (packs/items)
+              <input id="quantity" type="number" min="0.01" step="0.01" value="1">
             </label>
             <label>
               Price per pack/item (KSh)
@@ -89,8 +89,8 @@
           <ul id="pending-products" class="cart"></ul>
           <ul id="pending-sales" class="cart"></ul>
           <p class="muted">
-            When internet is back, sign in to Biashara Manager and open the Sales
-            page to sync this device's saved sales.
+            When internet is back, sign in and open Biashara Manager's Sales page to sync
+            this device's saved sales.
           </p>
           <a class="button" href="../../../">Open Biashara Manager to sync</a>
           <p class="muted">Protect this device with a screen lock; pending sales are stored locally.</p>
