@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 import hashlib
-import os
 from pathlib import Path
 import psycopg
 import setup_biashara
@@ -260,16 +259,6 @@ def t(key, lang="en", **kwargs):
     if text is None:
         text = get_text(key, lang=lang)
     return text.format(**kwargs) if kwargs else text
-
-
-def offline_checkout_enabled():
-    enabled = os.getenv("OFFLINE_CHECKOUT_ENABLED")
-    if enabled is None:
-        try:
-            enabled = st.secrets.get("OFFLINE_CHECKOUT_ENABLED", "false")
-        except (KeyError, StreamlitSecretNotFoundError):
-            enabled = "false"
-    return str(enabled).strip().lower() in {"1", "true", "yes"}
 
 
 OFFLINE_SYNC_COMPONENT = st.components.v2.component(
@@ -1018,22 +1007,21 @@ elif page == "Products":
 elif page == "Sales":
     page_header(t("sales_title", lang), t("sales_sub", lang))
     products = get_business_products(biz["business_id"], owner_email)
-    if offline_checkout_enabled():
-        st.caption(
-            "Offline sales save on this device. Open this page while online to keep its "
-            "product list up to date. Open offline checkout once while online to prepare "
-            "the page for a connection drop."
-            if lang == "en"
-            else "Mauzo ya nje ya mtandao huhifadhiwa kwenye kifaa hiki. Fungua ukurasa huu "
-            "ukiwa mtandaoni kusasisha bidhaa. Fungua mauzo ya nje ya mtandao mara moja "
-            "ukiwa mtandaoni ili kuandaa ukurasa intaneti ikikatika."
-        )
-        st.link_button(
-            "Open offline checkout" if lang == "en" else "Fungua mauzo ya nje ya mtandao",
-            "./app/static/offline/index.html",
-            width="stretch",
-        )
-        sync_offline_sales(biz, products, lang)
+    st.caption(
+        "Offline sales save on this device. Open this page while online to keep its "
+        "product list up to date. Open offline checkout once while online to prepare "
+        "the page for a connection drop."
+        if lang == "en"
+        else "Mauzo ya nje ya mtandao huhifadhiwa kwenye kifaa hiki. Fungua ukurasa huu "
+        "ukiwa mtandaoni kusasisha bidhaa. Fungua mauzo ya nje ya mtandao mara moja "
+        "ukiwa mtandaoni ili kuandaa ukurasa intaneti ikikatika."
+    )
+    st.link_button(
+        "Open offline checkout" if lang == "en" else "Fungua mauzo ya nje ya mtandao",
+        "./app/static/offline/index.html",
+        width="stretch",
+    )
+    sync_offline_sales(biz, products, lang)
     left, right = st.columns([1, 1.15], gap="large")
     with left:
         st.markdown(f"### {t('new_sale_entry', lang)}")
