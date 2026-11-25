@@ -46,12 +46,24 @@
         <div class="card">
           <h2>Record a sale</h2>
           <p class="muted">
-            Choose a product already saved on this device, enter how many were sold, and save
-            the sale. New products must be added in Biashara Manager while online; reopen the
-            Sales page to refresh this device's product list.
+            Search products saved on this device, add each item to the sale, then save the
+            sale once. Add new products in Biashara Manager while online and reopen the Sales
+            page to refresh this device's list.
           </p>
-          <label for="product-select">Product</label>
-          <select id="product-select"></select>
+          <a class="button" href="../../../">Manage products online</a>
+          <label for="product-input">Product</label>
+          <input
+            id="product-input"
+            type="text"
+            list="product-suggestions"
+            autocomplete="off"
+            placeholder="Type a product name, e.g. bread"
+            aria-describedby="product-hint"
+          >
+          <datalist id="product-suggestions"></datalist>
+          <p id="product-hint" class="muted" aria-live="polite">
+            Suggestions come from products saved on this device.
+          </p>
           <div class="form-row">
             <label>
               Quantity sold (packs/items)
@@ -62,11 +74,12 @@
               <input id="unit-price" type="number" min="0" step="0.01">
             </label>
           </div>
-          <button id="add-item" class="button">Add to sale</button>
+          <button id="add-item" class="button">Add item to sale</button>
         </div>
 
         <div class="card">
           <h2>Sale</h2>
+          <p class="muted">Add another product the same way, then save the complete sale.</p>
           <ul id="cart-items" class="cart"></ul>
           <p id="sale-total" class="total">Total: KSh 0.00</p>
           <label for="payment-method">Payment method recorded</label>
