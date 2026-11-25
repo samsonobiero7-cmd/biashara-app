@@ -32,9 +32,10 @@ The offline sales page is a separate, installable test page at
 Sales page first so its business and full product list are saved locally. While
 offline, select an existing product, enter the quantity sold, and save the sale
 on the device. New products must be added in Biashara Manager while online; open
-the online Sales page again to refresh the offline catalog. Open the offline
-page once while online so its files are cached; then it can record sales without
-a connection.
+the online Sales page again to refresh the offline catalog. This catalog setup
+is needed once per browser/device, not before each sale. Open the offline page
+once while online so its files are cached; then it can record sales without a
+connection.
 
 Keep `OFFLINE_CHECKOUT_ENABLED` unset or `false` on the live deployment. Only
 enable it on a separate test deployment connected to a separate test database;
