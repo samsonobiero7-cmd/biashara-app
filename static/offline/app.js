@@ -7,6 +7,7 @@ const productStoreName = "products";
 
 let activeCatalog = null;
 let cart = [];
+let productsBySuggestion = new Map();
 
 function openDatabase() {
   return new Promise((resolve, reject) => {
@@ -163,6 +164,10 @@ function productKey(product) {
     : `product:${Number(product.product_id)}`;
 }
 
+function normalizeProductSuggestion(value) {
+  return value.trim().toLocaleLowerCase();
+}
+
 function cartItemProductKey(item) {
   return item.client_product_id
     ? `client:${item.client_product_id}`
@@ -170,24 +175,63 @@ function cartItemProductKey(item) {
 }
 
 function selectedProduct() {
-  const key = document.getElementById("product-select").value;
-  return activeCatalog.products.find((product) => productKey(product) === key);
+  const input = document.getElementById("product-input");
+  return productsBySuggestion.get(normalizeProductSuggestion(input.value));
 }
 
 function renderProducts() {
-  const productSelect = document.getElementById("product-select");
+  const productInput = document.getElementById("product-input");
+  const suggestions = document.getElementById("product-suggestions");
   const priceInput = document.getElementById("unit-price");
-  productSelect.replaceChildren();
+  const countsByName = new Map();
+  productsBySuggestion = new Map();
+  suggestions.replaceChildren();
+  productInput.value = "";
+  priceInput.value = "";
 
   activeCatalog.products.forEach((product) => {
-    const option = document.createElement("option");
-    option.value = productKey(product);
-    option.textContent = `${product.product_name} — ${product.stock_quantity} packs/items in stock`;
-    productSelect.append(option);
+    const nameKey = normalizeProductSuggestion(product.product_name);
+    countsByName.set(nameKey, (countsByName.get(nameKey) || 0) + 1);
   });
 
+  activeCatalog.products.forEach((product) => {
+    const nameKey = normalizeProductSuggestion(product.product_name);
+    let value = product.product_name;
+    if (countsByName.get(nameKey) > 1) {
+      value += ` — ${product.stock_quantity} in stock, ${formatMoney(product.selling_price)}`;
+    }
+    const baseValue = value;
+    let suffix = 2;
+    while (productsBySuggestion.has(normalizeProductSuggestion(value))) {
+      value = `${baseValue} (${suffix})`;
+      suffix += 1;
+    }
+
+    const option = document.createElement("option");
+    option.value = value;
+    option.label = `${product.product_name} — ${product.stock_quantity} packs/items in stock`;
+    suggestions.append(option);
+    productsBySuggestion.set(normalizeProductSuggestion(value), product);
+  });
+
+  document.getElementById("product-hint").textContent =
+    "Type to search products saved on this device. If a product is not listed, add it online and refresh the Sales page.";
+}
+
+function updateProductSelection() {
   const product = selectedProduct();
-  priceInput.value = product ? Number(product.selling_price || 0) : "";
+  const priceInput = document.getElementById("unit-price");
+  const hint = document.getElementById("product-hint");
+  if (product) {
+    priceInput.value = Number(product.selling_price || 0);
+    hint.textContent = `${product.product_name}: ${product.stock_quantity} packs/items saved on this device.`;
+    return;
+  }
+
+  priceInput.value = "";
+  hint.textContent = document.getElementById("product-input").value.trim()
+    ? "Choose a product from the saved suggestions. New products must be added online."
+    : "Type to search products saved on this device.";
 }
 
 function renderCart() {
@@ -334,7 +378,8 @@ async function addItemToCart() {
   message.textContent = "";
 
   if (!product || !Number.isFinite(quantity) || quantity <= 0) {
-    message.textContent = "Choose a product and enter a quantity above zero.";
+    message.textContent =
+      "Choose a saved product suggestion and enter a quantity above zero.";
     return;
   }
   if (!Number.isFinite(unitPrice) || unitPrice < 0) {
@@ -358,8 +403,13 @@ async function addItemToCart() {
     quantity,
     unit_price: unitPrice,
   });
+  document.getElementById("product-input").value = "";
   document.getElementById("quantity").value = "1";
+  document.getElementById("unit-price").value = "";
+  document.getElementById("product-hint").textContent =
+    `${product.product_name} added. Search for another product or save the sale.`;
   renderCart();
+  document.getElementById("product-input").focus();
 }
 
 async function saveSaleOffline() {
@@ -428,12 +478,7 @@ async function start() {
       document.getElementById("sale-message").textContent = error.message;
     });
   });
-  document.getElementById("product-select").addEventListener("change", () => {
-    const product = selectedProduct();
-    document.getElementById("unit-price").value = product
-      ? Number(product.selling_price || 0)
-      : "";
-  });
+  document.getElementById("product-input").addEventListener("input", updateProductSelection);
   document.getElementById("add-item").addEventListener("click", () => {
     addItemToCart().catch((error) => {
       document.getElementById("sale-message").textContent = error.message;
