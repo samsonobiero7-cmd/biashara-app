@@ -74,25 +74,6 @@ async function saveSaleAndCatalog(sale, catalog) {
   }
 }
 
-async function saveProductAndCatalog(product, catalog) {
-  const database = await openDatabase();
-  try {
-    await new Promise((resolve, reject) => {
-      const transaction = database.transaction(
-        [catalogStoreName, productStoreName],
-        "readwrite",
-      );
-      transaction.objectStore(productStoreName).add(product);
-      transaction.objectStore(catalogStoreName).put(catalog);
-      transaction.oncomplete = resolve;
-      transaction.onerror = () => reject(transaction.error);
-      transaction.onabort = () => reject(transaction.error);
-    });
-  } finally {
-    database.close();
-  }
-}
-
 async function savePendingReference(clientSaleId, reference) {
   const database = await openDatabase();
   try {
@@ -126,7 +107,7 @@ function setConnectionStatus() {
   const status = document.getElementById("connection-status");
   status.textContent = navigator.onLine
     ? "Internet available"
-    : "Offline — sales and products save on this device";
+    : "Offline — sales save on this device";
   status.classList.toggle("offline", !navigator.onLine);
 }
 
@@ -258,13 +239,16 @@ async function renderPendingCount() {
       product.owner_email === activeCatalog.owner_email &&
       Number(product.business_id) === Number(activeCatalog.business_id),
   );
-  const saleLabel = pending.length === 1 ? "1 sale" : `${pending.length} sales`;
-  const productLabel =
-    pendingProducts.length === 1
-      ? "1 product"
-      : `${pendingProducts.length} products`;
-  document.getElementById("pending-count").textContent =
-    `${saleLabel} and ${productLabel} waiting to sync.`;
+  const pendingCount = document.getElementById("pending-count");
+  pendingCount.textContent =
+    pending.length === 0
+      ? "No unsynced sales."
+      : `${pending.length} sale${pending.length === 1 ? "" : "s"} waiting to sync.`;
+  if (pendingProducts.length > 0) {
+    pendingCount.textContent +=
+      ` ${pendingProducts.length} previously queued product` +
+      `${pendingProducts.length === 1 ? "" : "s"} also waiting to sync.`;
+  }
   const list = document.getElementById("pending-sales");
   list.replaceChildren();
   pending.forEach((sale) => {
@@ -425,71 +409,6 @@ async function saveSaleOffline() {
   message.textContent = "Sale saved on this device. It will sync when you're online.";
 }
 
-async function addProductOffline() {
-  const message = document.getElementById("product-message");
-  message.textContent = "";
-  const productName = document.getElementById("new-product-name").value.trim();
-  const rawValues = [
-    document.getElementById("new-product-stock").value,
-    document.getElementById("new-product-reorder").value,
-    document.getElementById("new-product-buying-price").value,
-    document.getElementById("new-product-selling-price").value,
-  ];
-  const [stockQuantity, reorderLevel, buyingPrice, sellingPrice] =
-    rawValues.map(Number);
-
-  if (!productName) {
-    message.textContent = "Enter a product name or size.";
-    return;
-  }
-  const duplicate = activeCatalog.products.some(
-    (product) => product.product_name.trim().toLocaleLowerCase() === productName.toLocaleLowerCase(),
-  );
-  if (duplicate) {
-    message.textContent =
-      "A product with this name is already saved on this device. Select it from the list.";
-    return;
-  }
-  if (
-    rawValues.some((value) => !value.trim()) ||
-    ![stockQuantity, reorderLevel, buyingPrice, sellingPrice].every(
-      (value) => Number.isFinite(value) && value >= 0,
-    )
-  ) {
-    message.textContent =
-      "Stock, reorder level, and prices must be valid numbers of zero or more.";
-    return;
-  }
-
-  const product = {
-    client_product_id: crypto.randomUUID(),
-    owner_email: activeCatalog.owner_email,
-    business_id: Number(activeCatalog.business_id),
-    product_name: productName,
-    stock_quantity: stockQuantity,
-    reorder_level: reorderLevel,
-    buying_price: buyingPrice,
-    selling_price: sellingPrice,
-  };
-  const catalog = {
-    ...activeCatalog,
-    products: [...activeCatalog.products, { ...product, product_id: null }],
-  };
-
-  await saveProductAndCatalog(product, catalog);
-  activeCatalog = catalog;
-  document.getElementById("new-product-name").value = "";
-  document.getElementById("new-product-stock").value = "0";
-  document.getElementById("new-product-reorder").value = "5";
-  document.getElementById("new-product-buying-price").value = "0";
-  document.getElementById("new-product-selling-price").value = "0";
-  renderProducts();
-  renderCart();
-  await renderPendingCount();
-  message.textContent =
-    "Product saved on this device. It will be added to your business when you sync online.";
-}
-
 async function start() {
   initializeTheme();
   setConnectionStatus();
@@ -525,13 +444,6 @@ async function start() {
         `Sale was not saved: ${error.message}`;
     });
   });
-  document.getElementById("save-product").addEventListener("click", () => {
-    addProductOffline().catch((error) => {
-      document.getElementById("product-message").textContent =
-        `Product was not saved: ${error.message}`;
-    });
-  });
-
   try {
     await loadCatalogs();
   } catch (error) {

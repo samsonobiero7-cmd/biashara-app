@@ -31,8 +31,8 @@
         <h2>Prepare this device first</h2>
         <p>
           While online, sign in to Biashara Manager and open the Sales page once. This saves
-          your business and existing products on this device; you can also add products here
-          later while offline.
+          your business and product list on this device. You can then record sales while
+          offline using products from that saved list.
         </p>
         <a class="button" href="../../../">Open Biashara Manager</a>
       </section>
@@ -44,11 +44,11 @@
         </div>
 
         <div class="card">
-          <h2>Products</h2>
+          <h2>Record a sale</h2>
           <p class="muted">
-            Products saved from the online catalog are available here. You can also add a
-            product while offline; it will be created in your business when you sync online.
-            Add each size as a separate product with its own price and stock.
+            Choose a product already saved on this device, enter how many were sold, and save
+            the sale. New products must be added in Biashara Manager while online; reopen the
+            Sales page to refresh this device's product list.
           </p>
           <label for="product-select">Product</label>
           <select id="product-select"></select>
@@ -63,32 +63,6 @@
             </label>
           </div>
           <button id="add-item" class="button">Add to sale</button>
-
-          <h3>Add a product offline</h3>
-          <label for="new-product-name">Product name or size</label>
-          <input id="new-product-name" type="text" maxlength="120" autocomplete="off">
-          <div class="form-row">
-            <label>
-              Opening stock
-              <input id="new-product-stock" type="number" min="0" step="0.01" value="0">
-            </label>
-            <label>
-              Alert when stock is below
-              <input id="new-product-reorder" type="number" min="0" step="0.01" value="5">
-            </label>
-          </div>
-          <div class="form-row">
-            <label>
-              Buying price (KSh)
-              <input id="new-product-buying-price" type="number" min="0" step="0.01" value="0">
-            </label>
-            <label>
-              Selling price (KSh)
-              <input id="new-product-selling-price" type="number" min="0" step="0.01" value="0">
-            </label>
-          </div>
-          <button id="save-product" class="button" type="button">Save product on this device</button>
-          <p id="product-message" class="message" aria-live="polite"></p>
         </div>
 
         <div class="card">
@@ -118,7 +92,7 @@
             page to sync this device's saved sales.
           </p>
           <a class="button" href="../../../">Open Biashara Manager to sync</a>
-          <p class="muted">Protect this device with a screen lock; sales are stored locally.</p>
+          <p class="muted">Protect this device with a screen lock; pending sales are stored locally.</p>
         </div>
       </section>
     </main>

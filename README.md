@@ -30,23 +30,20 @@ The app's backup download is scoped to the signed-in owner's businesses.
 The offline sales page is a separate, installable test page at
 `/app/static/offline/index.html`. Each device must sign in and open the online
 Sales page first so its business and full product list are saved locally. While
-offline, the page can record sales and add products with their opening stock,
-buying price, selling price, and reorder level. Each pack size should be a
-separate product with its own stock and price. New offline products sync before
-sales that use them when the user signs in again and opens the online Sales
-page. Open the offline page once while online so its files are cached; then it
-can record sales and products without a connection.
+offline, select an existing product, enter the quantity sold, and save the sale
+on the device. New products must be added in Biashara Manager while online; open
+the online Sales page again to refresh the offline catalog. Open the offline
+page once while online so its files are cached; then it can record sales without
+a connection.
 
 Keep `OFFLINE_CHECKOUT_ENABLED` unset or `false` on the live deployment. Only
 enable it on a separate test deployment connected to a separate test database;
 offline test sales sync into whichever database that deployment uses.
 
-Offline products and sales stay in that device's browser until the user signs in
-again and opens the online Sales page. Do not clear the browser's site data or
-uninstall the offline page until all pending records have synced. An offline
-product with a name that already exists in the business must be resolved by
-refreshing the catalog and using the existing product. If several devices record
-sales while disconnected, synced sales are kept and stock that falls below zero
-must be checked by the business owner. Use a device protected with a screen lock;
-offline products and pending sales are stored locally in that browser.
+Offline sales stay in that device's browser until the user signs in again and
+opens the online Sales page. Do not clear the browser's site data or uninstall
+the offline page until pending sales have synced. If several devices record sales
+while disconnected, synced sales are kept and stock that falls below zero must
+be checked by the business owner. Use a device protected with a screen lock;
+pending sales are stored locally in that browser.
 
